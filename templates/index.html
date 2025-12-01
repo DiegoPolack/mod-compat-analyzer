@@ -1,0 +1,2006 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analizador de Compatibilidad de Mods | Modrinth</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --bg-grad1: rgba(34, 211, 238, 0.12);
+      --bg-grad2: rgba(168, 85, 247, 0.16);
+      --panel: #111827;
+      --accent: #22d3ee;
+      --accent-2: #a855f7;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --border: rgba(255, 255, 255, 0.08);
+      --success: #34d399;
+      --chip-bg: rgba(34, 211, 238, 0.12);
+      --chip-border: rgba(34, 211, 238, 0.3);
+      --chip-text: var(--text);
+      --chip-remove-bg: rgba(248, 113, 113, 0.12);
+      --chip-remove-border: rgba(248, 113, 113, 0.35);
+      --input-focus: rgba(34, 211, 238, 0.18);
+      --panel-glow: 0 20px 60px rgba(0,0,0,0.45);
+      --button-glow: rgba(168, 85, 247, 0.4);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Inter", "Segoe UI", sans-serif;
+      background: radial-gradient(circle at 20% 20%, var(--bg-grad1), transparent 30%),
+                  radial-gradient(circle at 80% 0%, var(--bg-grad2), transparent 25%),
+                  var(--bg);
+      background-attachment: fixed;
+      background-size: cover;
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px 48px;
+      transition: background-color 0.25s ease, color 0.25s ease, background 0.25s ease;
+    }
+    .container {
+      width: min(1100px, 100%);
+      background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 90%, transparent), color-mix(in srgb, var(--panel) 75%, transparent));
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--panel-glow);
+      padding: 28px;
+      backdrop-filter: blur(10px);
+      transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+    .title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .badge {
+      background: linear-gradient(120deg, var(--accent), var(--accent-2));
+      color: #0b1220;
+      padding: 8px 12px;
+      border-radius: 12px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      text-transform: uppercase;
+      font-size: 12px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 26px;
+      letter-spacing: -0.02em;
+    }
+    .muted { color: var(--muted); }
+    .panel {
+      margin-top: 18px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    select, input[type="text"] {
+      width: 100%;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 14px;
+      outline: none;
+    }
+    textarea.small {
+      min-height: 70px;
+    }
+    label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; }
+    .switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+      font-size: 13px;
+      color: var(--text);
+    }
+    .filters-inline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-top: 8px;
+    }
+    .search-row {
+      display: grid;
+      grid-template-columns: 1fr 60px;
+      gap: 10px;
+      align-items: end;
+      margin-top: 12px;
+    }
+    .search-results {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 10px;
+      max-height: 320px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .search-btn {
+      width: 60px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 24px rgba(168, 85, 247, 0.35);
+      transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.15s ease;
+      padding: 0;
+    }
+    .search-btn:active { transform: translateY(1px) scale(0.98); }
+    .search-btn .icon-search {
+      width: 18px;
+      height: 18px;
+      display: inline-block;
+      background: currentColor;
+      mask: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M15.5 15.5L20 20M11 17C7.13401 17 4 13.866 4 10C4 6.13401 7.13401 3 11 3C14.866 3 18 6.13401 18 10C18 13.866 14.866 17 11 17Z' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;
+      color: #0b1220;
+    }
+    .mods-preview {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .mod-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--chip-bg);
+      border: 1px solid var(--chip-border);
+      color: var(--chip-text);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.2s ease;
+      justify-content: center;
+      min-height: 26px;
+      transform: scale(0.97);
+    }
+    .mod-chip .chip-text {
+      transition: transform 0.2s ease, text-align 0.2s ease, opacity 0.2s ease;
+      text-align: center;
+      display: inline-block;
+      min-width: 60px;
+    }
+    .mod-chip .chip-remove {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(248, 113, 113, 0.12);
+      color: #fca5a5;
+      border: 1px solid rgba(248, 113, 113, 0.35);
+      font-weight: 700;
+      opacity: 0;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .mod-chip .chip-link {
+      opacity: 0;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      font-size: 11px;
+      padding: 3px 5px;
+      border-radius: 6px;
+      background: rgba(34,211,238,0.08);
+      color: var(--accent);
+      text-decoration: none;
+      border: 1px solid rgba(34,211,238,0.25);
+    }
+    .mod-chip:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px) scale(1.03);
+      justify-content: flex-start;
+      gap: 10px;
+    }
+    .mod-chip:hover .chip-text {
+      text-align: left;
+      transform: translateX(2px) scale(0.97);
+      opacity: 0.92;
+    }
+    .mod-chip:hover .chip-remove,
+    .mod-chip:hover .chip-link {
+      opacity: 1;
+      transform: translateY(-1px);
+    }
+    .invalid-note {
+      color: #fca5a5;
+      font-size: 11px;
+      margin-top: 6px;
+    }
+    .other-loader-block {
+      margin-top: 8px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.02);
+    }
+    .other-stack {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+    }
+    .copy-btn {
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      margin-left: 8px;
+      transition: transform 0.1s ease, border-color 0.1s ease;
+    }
+    .copy-btn:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .lang-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .select-ghost {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+    .theme-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      margin-left: 12px;
+    }
+    /* Scrollbars minimalistas */
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.16) transparent;
+    }
+    *::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    *::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    *::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, rgba(34,211,238,0.3), rgba(168,85,247,0.3));
+      border-radius: 10px;
+    }
+    *::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(180deg, rgba(34,211,238,0.45), rgba(168,85,247,0.45));
+    }
+    .result-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      height: 100%;
+    }
+.result-card h4 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+}
+.result-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+    .result-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .result-card .add-btn { margin-top: auto; align-self: flex-end; }
+    .icon-btn {
+      min-width: 42px;
+      min-height: 42px;
+      padding: 10px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    .add-btn {
+      align-self: flex-start;
+      background: rgba(34, 211, 238, 0.12);
+      color: var(--accent);
+      border: 1px solid rgba(34, 211, 238, 0.35);
+      border-radius: 12px;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+      min-width: 44px;
+      min-height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+    }
+    .add-btn:hover { transform: translateY(-1px); border-color: var(--accent); box-shadow: 0 8px 16px rgba(34,211,238,0.18); background: rgba(34,211,238,0.16); }
+    .add-btn.add-toggle-btn { border-radius: 999px; }
+    .add-btn.add-toggle-btn.is-added { background: rgba(248, 113, 113, 0.14); color: #fca5a5; border-color: rgba(248,113,113,0.35); }
+    textarea {
+      width: 100%;
+      min-height: 130px;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 14px;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.18);
+    }
+    button {
+      background: linear-gradient(120deg, var(--accent), var(--accent-2));
+      color: #0b1220;
+      font-weight: 700;
+      border: none;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 15px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 10px 30px rgba(168, 85, 247, 0.4);
+      transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.15s ease;
+    }
+    button:active { transform: translateY(1px) scale(0.99); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
+    .actions { margin-top: 14px; display: flex; gap: 12px; align-items: center; }
+    .actions-left { display: inline-flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .mods-count {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .reset-btn {
+      margin-left: auto;
+      background: rgba(248,113,113,0.14);
+      color: #fca5a5;
+      border: 1px solid rgba(248,113,113,0.35);
+      border-radius: 10px;
+      width: 38px;
+      height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+      transition: transform 0.15s ease, box-shadow 0.18s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+    .reset-btn:hover {
+      transform: translateY(-1px);
+      border-color: rgba(248,113,113,0.6);
+      box-shadow: 0 10px 26px rgba(248,113,113,0.35);
+      background: rgba(248,113,113,0.22);
+    }
+    .reset-btn:active { transform: translateY(1px) scale(0.97); }
+    .loader {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .loader.active { display: inline-flex; }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 3px solid rgba(255,255,255,0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+    thead { background: rgba(255,255,255,0.04); }
+    th, td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      cursor: pointer;
+      user-select: none;
+      font-size: 13px;
+      letter-spacing: 0.01em;
+      color: var(--muted);
+    }
+    tbody tr:hover { background: rgba(255,255,255,0.02); }
+    tr.details-row { background: rgba(255,255,255,0.02); }
+    .details {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 12px;
+      padding: 8px 2px 4px;
+    }
+    .list-title { font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip.slim { padding: 5px 8px; font-size: 12px; }
+    .chip {
+      background: rgba(34, 211, 238, 0.1);
+      color: var(--accent);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid rgba(34, 211, 238, 0.25);
+    }
+    .recommended {
+      border-left: 3px solid var(--success);
+      background: linear-gradient(90deg, rgba(52, 211, 153, 0.12), transparent);
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--success);
+      font-weight: 700;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .errors {
+      margin-top: 10px;
+      color: #fca5a5;
+      font-size: 13px;
+    }
+    .footer {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title">
+        <div class="badge">Modrinth</div>
+        <div>
+          <h1 id="titleMain">Analizador de Compatibilidad de Mods</h1>
+          <div class="muted" id="subtitle">Pega URLs o IDs de Modrinth y descubre la versión de Minecraft más compatible.</div>
+        </div>
+      </div>
+      <div style="margin-left:auto;">
+        <div class="lang-switch">
+          <span id="langLabel">Idioma</span>
+          <select id="langSelect" class="select-ghost">
+            <option value="es">🇪🇸 Español</option>
+            <option value="en">🇺🇸 English</option>
+            <option value="pt">🇧🇷 Português</option>
+            <option value="fr">🇫🇷 Français</option>
+            <option value="de">🇩🇪 Deutsch</option>
+            <option value="zh">🇨🇳 中文</option>
+            <option value="ja">🇯🇵 日本語</option>
+            <option value="ru">🇷🇺 Русский</option>
+          </select>
+        </div>
+        <div class="theme-switch">
+          <span id="themeLabel">Tema</span>
+          <select id="themeSelect" class="select-ghost">
+            <option value="default" data-key="themeDefault">Predeterminado</option>
+            <option value="dark" data-key="themeDark">Oscuro</option>
+            <option value="light" data-key="themeLight">Claro</option>
+            <option value="sepia" data-key="themeSepia">Sepia</option>
+            <option value="sepia-dark" data-key="themeSepiaDark">Sepia oscuro</option>
+            <option value="oled" data-key="themeOled">OLED</option>
+            <option value="modrinth" data-key="themeModrinth">Modrinth</option>
+            <option value="minecraft" data-key="themeMinecraft">Minecraft</option>
+        </select>
+      </div>
+      </div>
+    </header>
+
+    <div class="panel">
+      <label for="input" class="muted" id="inputLabel">Enlaces o IDs (una por línea o separados por comas)</label>
+      <textarea id="input" placeholder="https://modrinth.com/mod/sodium&#10;https://modrinth.com/mod/lithium"></textarea>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;">
+        <div class="muted" style="font-size:12px;" id="chipSortLabel">Ordenar chips:</div>
+        <select id="chipSort" style="background: var(--panel); color: var(--text); border:1px solid var(--border); border-radius:10px; padding:6px 8px; font-size:12px;">
+          <option value="default">Predeterminado</option>
+          <option value="az">A-Z</option>
+          <option value="za">Z-A</option>
+          <option value="compact">Inteligente</option>
+        </select>
+      </div>
+      <div class="mods-preview" id="modsPreview"></div>
+      <div id="invalidList" class="invalid-note"></div>
+
+      <div class="search-row">
+        <div>
+          <label for="searchInput" id="searchLabel">Buscar mods en Modrinth</label>
+          <input type="text" id="searchInput" placeholder="Ej: sodium, lithium, replay mod">
+        </div>
+        <button id="searchBtn" class="icon-btn search-btn" aria-label="Buscar">
+          <span class="icon-search"></span>
+        </button>
+      </div>
+      <div class="loader" id="searchLoader" style="margin-top:6px;">
+        <div class="spinner"></div>
+        <span id="searchLoaderText">Buscando mods...</span>
+      </div>
+      <div class="search-results" id="searchResults"></div>
+
+      <div class="controls-grid">
+        <div style="grid-column: span 2;">
+          <label for="loaderSelect" id="loaderLabel">Modloader</label>
+          <div class="muted" id="loaderHint" style="font-size:11px; opacity:0.75; margin:4px 0 6px 0;">Puedes cambiar el Modloader y volver a analizar con la misma lista de mods.</div>
+          <select id="loaderSelect">
+            <option value="fabric">Fabric</option>
+            <option value="forge">Forge</option>
+            <option value="neoforge">NeoForge</option>
+            <option value="quilt">Quilt</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="actions">
+        <div class="actions-left">
+          <button id="analyzeBtn">
+            <span>Analizar Compatibilidad</span>
+          </button>
+          <div class="loader" id="loader">
+            <div class="spinner"></div>
+            <span id="analyzingText">Analizando en Modrinth...</span>
+          </div>
+          <div id="modsCount" class="mods-count">0 mods a analizar</div>
+        </div>
+        <button id="resetBtn" type="button" class="reset-btn" aria-label="Reset" title="Reset">&#10227;</button>
+      </div>
+      <div class="errors" id="errors"></div>
+    </div>
+
+    <div class="panel" style="margin-top: 16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div class="pill" id="recommendation">Esperando análisis…</div>
+        <div class="muted" style="font-size:13px;" id="sortHint">Haz clic en los encabezados para ordenar.</div>
+      </div>
+
+      <div class="controls-grid" style="margin-top:12px;">
+        <div>
+          <label for="displayFilterMode" id="displayFilterLabel">Filtrar resultados mostrados</label>
+          <select id="displayFilterMode">
+            <option value="all">Mostrar todas</option>
+            <option value="all_except">Todas excepto...</option>
+            <option value="only">Solo estas...</option>
+          </select>
+        </div>
+        <div>
+          <label for="displayVersionFilters" id="displayVersionFiltersLabel">Versiones a incluir/excluir</label>
+          <textarea id="displayVersionFilters" class="small" placeholder="1.20, 1.21.2&#10;1.21.x&#10;1.18-1.21.2"></textarea>
+        </div>
+        <div>
+          <label id="displaySnapshotsLabel">Snapshots</label>
+          <div class="switch">
+            <input type="checkbox" id="displaySnapshots" checked>
+            <span id="displaySnapshotsToggle">Mostrar snapshots</span>
+          </div>
+        </div>
+        <div>
+          <label id="displayPrereleaseLabel">Pre-releases</label>
+          <div class="switch">
+            <input type="checkbox" id="displayPrereleases" checked>
+            <span id="displayPrereleaseToggle">Mostrar pre-releases</span>
+          </div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th data-column="version" id="tableVersion">Versión de Minecraft</th>
+            <th data-column="count" id="tableCount">Mods compatibles</th>
+            <th id="tableDetails">Detalles</th>
+          </tr>
+        </thead>
+        <tbody id="results">
+          <tr><td colspan="3" class="muted">Sin datos aún. Ejecuta un análisis.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel" style="margin-top: 12px;">
+      <h3 style="margin:0 0 8px 0;" id="guideTitle">Guía rápida de filtros</h3>
+      <ul id="guideList" style="margin:0; padding-left:18px; color: var(--muted); line-height:1.5;"></ul>
+    </div>
+    <div class="footer" id="footerText">Datos obtenidos vía API de Modrinth.</div>
+  </div>
+
+  <script>
+    const btn = document.getElementById("analyzeBtn");
+    const loader = document.getElementById("loader");
+    const errorsEl = document.getElementById("errors");
+    const resultsBody = document.getElementById("results");
+    const recommendation = document.getElementById("recommendation");
+    const displayFilterMode = document.getElementById("displayFilterMode");
+    const displayVersionFilters = document.getElementById("displayVersionFilters");
+    const displaySnapshots = document.getElementById("displaySnapshots");
+    const displayPrereleases = document.getElementById("displayPrereleases");
+    const loaderSelect = document.getElementById("loaderSelect");
+    const resetBtn = document.getElementById("resetBtn");
+    const displayFilterModeOptions = displayFilterMode.querySelectorAll("option");
+    const searchInput = document.getElementById("searchInput");
+    const searchBtn = document.getElementById("searchBtn");
+    const searchResults = document.getElementById("searchResults");
+    const searchLoader = document.getElementById("searchLoader");
+    const modsPreview = document.getElementById("modsPreview");
+    const chipSort = document.getElementById("chipSort");
+    const themeSelect = document.getElementById("themeSelect");
+    let searchTimeout = null;
+    let currentMods = [];
+    let invalidEntries = [];
+    let currentLang = "es";
+    let currentTheme = "default";
+    const loaderNames = { fabric: "Fabric", forge: "Forge", neoforge: "NeoForge", quilt: "Quilt" };
+
+    const themes = {
+      default: {
+        "--bg": "#0f172a",
+        "--panel": "#111827",
+        "--accent": "#22d3ee",
+        "--accent-2": "#a855f7",
+        "--text": "#e5e7eb",
+        "--muted": "#9ca3af",
+        "--border": "rgba(255, 255, 255, 0.08)",
+        "--success": "#34d399",
+      },
+      dark: {
+        "--bg": "#0b0f1a",
+        "--panel": "#101421",
+        "--accent": "#60a5fa",
+        "--accent-2": "#7c3aed",
+        "--text": "#e5e7eb",
+        "--muted": "#a1a7b7",
+        "--border": "rgba(255,255,255,0.08)",
+        "--success": "#4ade80",
+      },
+      light: {
+        "--bg": "#f8fafc",
+        "--panel": "#ffffff",
+        "--accent": "#0ea5e9",
+        "--accent-2": "#8b5cf6",
+        "--text": "#0f172a",
+        "--muted": "#64748b",
+        "--border": "rgba(0,0,0,0.08)",
+        "--success": "#16a34a",
+      },
+      sepia: {
+        "--bg": "#f4ecd8",
+        "--bg-grad1": "rgba(217, 119, 6, 0.12)",
+        "--bg-grad2": "rgba(180, 83, 9, 0.12)",
+        "--panel": "#f1e4c9",
+        "--accent": "#d97706",
+        "--accent-2": "#b45309",
+        "--text": "#3f2f1b",
+        "--muted": "#735c3a",
+        "--border": "rgba(0,0,0,0.08)",
+        "--success": "#15803d",
+        "--chip-bg": "rgba(217,119,6,0.12)",
+        "--chip-border": "rgba(217,119,6,0.25)",
+        "--chip-text": "#3f2f1b",
+        "--chip-remove-bg": "rgba(220,38,38,0.12)",
+        "--chip-remove-border": "rgba(220,38,38,0.3)",
+        "--input-focus": "rgba(217,119,6,0.18)",
+        "--panel-glow": "0 12px 30px rgba(0,0,0,0.18)",
+        "--button-glow": "rgba(180,83,9,0.25)",
+      },
+      "sepia-dark": {
+        "--bg": "#21160d",
+        "--bg-grad1": "rgba(217, 119, 6, 0.2)",
+        "--bg-grad2": "rgba(180, 83, 9, 0.2)",
+        "--panel": "#2b1c10",
+        "--accent": "#e0a24a",
+        "--accent-2": "#c07a2a",
+        "--text": "#f3e9da",
+        "--muted": "#cbb69a",
+        "--border": "rgba(255,255,255,0.08)",
+        "--success": "#9ccb7a",
+        "--chip-bg": "rgba(224,162,74,0.15)",
+        "--chip-border": "rgba(224,162,74,0.35)",
+        "--chip-text": "#f3e9da",
+        "--chip-remove-bg": "rgba(240,68,56,0.15)",
+        "--chip-remove-border": "rgba(240,68,56,0.35)",
+        "--input-focus": "rgba(224,162,74,0.22)",
+        "--panel-glow": "0 14px 40px rgba(0,0,0,0.4)",
+        "--button-glow": "rgba(224,162,74,0.35)",
+      },
+      oled: {
+        "--bg": "#000000",
+        "--panel": "#050505",
+        "--accent": "#22d3ee",
+        "--accent-2": "#a855f7",
+        "--text": "#e5e7eb",
+        "--muted": "#9ca3af",
+        "--border": "rgba(255,255,255,0.08)",
+        "--success": "#34d399",
+      },
+      modrinth: {
+        "--bg": "#0c1a12",
+        "--panel": "#0f2418",
+        "--accent": "#00c775",
+        "--accent-2": "#00a060",
+        "--text": "#e7f9ee",
+        "--muted": "#9cc6ad",
+        "--border": "rgba(255,255,255,0.08)",
+        "--success": "#00c775",
+      },
+      minecraft: {
+        "--bg": "#0f2a0f",
+        "--panel": "#123315",
+        "--accent": "#55aa55",
+        "--accent-2": "#8ccf3f",
+        "--text": "#e8f5e4",
+        "--muted": "#a9c3a0",
+        "--border": "rgba(255,255,255,0.08)",
+        "--success": "#7bc74d",
+      },
+    };
+
+    const translations = {
+      es: {
+        langLabel: "Idioma",
+        title: "Analizador de Compatibilidad de Mods",
+        subtitle: "Pega URLs o IDs de Modrinth y descubre la versión de Minecraft más compatible.",
+        inputLabel: "Enlaces o IDs (una por línea o separados por comas)",
+        chipSortLabel: "Ordenar chips:",
+        themeLabel: "Tema",
+        chipSortDefault: "Predeterminado",
+        chipSortAZ: "A-Z",
+        chipSortZA: "Z-A",
+        chipSortCompact: "Inteligente",
+        compatCount: "{count} de {total} mods ({percent}%)",
+        themeDefault: "Predeterminado",
+        themeDark: "Oscuro",
+          themeLight: "Claro",
+          themeSepia: "Sepia",
+          themeSepiaDark: "Sepia oscuro",
+          themeOled: "OLED",
+          themeModrinth: "Modrinth",
+        themeMinecraft: "Minecraft",
+        loaderLabel: "Modloader",
+        loaderNote: "Puedes cambiar el Modloader y volver a analizar con la misma lista de mods.",
+        modsToAnalyze: "{count} mods a analizar",
+        searchLabel: "Buscar mods en Modrinth",
+        searchPlaceholder: "Ej: sodium, lithium, replay mod",
+        searchBtn: "Buscar y añadir",
+        searchLoading: "Buscando mods...",
+        filterModeLabel: "Filtro previo por versión",
+        filterModeAllExcept: "Todas las versiones excepto...",
+        filterModeOnly: "Solo estas versiones...",
+        versionFiltersLabel: "Lista de versiones (opcional)",
+        snapshotsLabel: "Snapshots",
+        snapshotsInclude: "Incluir snapshots",
+        prereleaseLabel: "Pre-releases",
+        prereleaseInclude: "Incluir pre-releases",
+        analyzeBtn: "Analizar Compatibilidad",
+        resetBtn: "Restablecer",
+        analyzingText: "Analizando en Modrinth...",
+        sortHint: "Haz clic en los encabezados para ordenar.",
+        displayFilterLabel: "Filtrar resultados mostrados",
+        displayVersionFiltersLabel: "Versiones a incluir/excluir",
+        displaySnapshotsLabel: "Snapshots",
+        displaySnapshotsToggle: "Mostrar snapshots",
+        displayPrereleaseLabel: "Pre-releases",
+        displayPrereleaseToggle: "Mostrar pre-releases",
+        tableVersion: "Versión de Minecraft",
+        tableCount: "Mods compatibles",
+        tableDetails: "Detalles",
+        tableNoData: "Sin datos aún. Ejecuta un análisis.",
+        noMods: "No has añadido mods aún.",
+        invalidNote: "Detectamos enlaces que no pertenecientes a Modrinth o no son mods (solo soportamos mods):",
+        invalidSuffix: "(se ignoran)",
+        noResults: "Sin resultados.",
+        searchError: "Error en la búsqueda",
+        recommended: "Versión recomendada: {version} ({count} de {total} mods)",
+        noRecommended: "Sin resultados disponibles",
+        viewMods: "Ver mods",
+        hideMods: "Ocultar",
+        listCompat: "Compatibles",
+        listIncompat: "No compatibles",
+        none: "Ninguno",
+        allCompat: "Todos son compatibles",
+        footer: "Datos obtenidos vía API de Modrinth.",
+        guideTitle: "Guía rápida de filtros",
+        guideItems: [
+          "<code>1.20, 1.21.2</code> → solo esas versiones exactas (1.20.0 y 1.21.2).",
+          "<code>1.21.x</code> → todas las versiones de la rama 1.21 (1.21.0 hasta la más reciente).",
+          "<code>1.18-1.21.2</code> → rango inclusivo: desde 1.18.0 hasta 1.21.2.",
+          "Snapshot = cualquier versión que no empiece por <code>1.</code> (checkbox \"Snapshots\").",
+          "Pre-release = versión con guion tras el número (ej. <code>1.20.1-rc1</code>) (checkbox \"Pre-releases\").",
+          "Busca mods en Modrinth arriba y añádelos con un clic.",
+          "Usa los filtros superiores antes de analizar o los de resultados para ocultar/mostrar después.",
+        ],
+      },
+      en: {
+        langLabel: "Language",
+        title: "Mod Compatibility Analyzer",
+        subtitle: "Paste Modrinth URLs or IDs and find the most compatible Minecraft version.",
+        inputLabel: "Links or IDs (one per line or comma separated)",
+        chipSortLabel: "Sort chips:",
+        themeLabel: "Theme",
+        chipSortDefault: "Default",
+        chipSortAZ: "A-Z",
+        chipSortZA: "Z-A",
+        chipSortCompact: "Compact",
+        compatCount: "{count} of {total} mods ({percent}%)",
+        themeDefault: "Default",
+        themeDark: "Dark",
+        themeLight: "Light",
+          themeSepia: "Sepia",
+          themeSepiaDark: "Sepia Dark",
+          themeOled: "OLED",
+          themeModrinth: "Modrinth",
+        themeMinecraft: "Minecraft",
+        loaderLabel: "Modloader",
+        loaderNote: "You can switch the modloader and re-run the analysis with the same mod list.",
+        modsToAnalyze: "{count} mods to analyze",
+        searchLabel: "Search mods on Modrinth",
+        searchPlaceholder: "E.g., sodium, lithium, replay mod",
+        searchBtn: "Search & add",
+        searchLoading: "Searching mods...",
+        filterModeLabel: "Pre-filter by version",
+        filterModeAllExcept: "All versions except...",
+        filterModeOnly: "Only these versions...",
+        versionFiltersLabel: "Version list (optional)",
+        snapshotsLabel: "Snapshots",
+        snapshotsInclude: "Include snapshots",
+        prereleaseLabel: "Pre-releases",
+        prereleaseInclude: "Include pre-releases",
+        analyzeBtn: "Analyze Compatibility",
+        resetBtn: "Reset",
+        analyzingText: "Analyzing on Modrinth...",
+        sortHint: "Click column headers to sort.",
+        displayFilterLabel: "Filter displayed results",
+        displayVersionFiltersLabel: "Versions to include/exclude",
+        displaySnapshotsLabel: "Snapshots",
+        displaySnapshotsToggle: "Show snapshots",
+        displayPrereleaseLabel: "Pre-releases",
+        displayPrereleaseToggle: "Show pre-releases",
+        tableVersion: "Minecraft Version",
+        tableCount: "Compatible Mods",
+        tableDetails: "Details",
+        tableNoData: "No data yet. Run an analysis.",
+        noMods: "No mods added yet.",
+        invalidNote: "We detected links that are not from Modrinth or are not mods (mods only):",
+        invalidSuffix: "(ignored)",
+        noResults: "No results.",
+        searchError: "Search error",
+        recommended: "Recommended version: {version} ({count} of {total} mods)",
+        noRecommended: "No results available",
+        viewMods: "View mods",
+        hideMods: "Hide",
+        listCompat: "Compatible",
+        listIncompat: "Not compatible",
+        none: "None",
+        allCompat: "All are compatible",
+        footer: "Data via Modrinth API.",
+        guideTitle: "Quick filter guide",
+        guideItems: [
+          "<code>1.20, 1.21.2</code> → only those exact versions.",
+          "<code>1.21.x</code> → all versions in the 1.21 branch.",
+          "<code>1.18-1.21.2</code> → inclusive range from 1.18.0 to 1.21.2.",
+          "Snapshot = any version not starting with <code>1.</code> (\"Snapshots\" checkbox).",
+          "Pre-release = version with hyphen (e.g., <code>1.20.1-rc1</code>) (\"Pre-releases\" checkbox).",
+          "Search mods above and add with one click.",
+          "Use pre-filters before analyzing or display filters after.",
+        ],
+      },
+      pt: {
+        langLabel: "Idioma",
+        title: "Analisador de Compatibilidade de Mods",
+        subtitle: "Cole URLs ou IDs do Modrinth e descubra a versão mais compatível do Minecraft.",
+        inputLabel: "Links ou IDs (uma por linha ou separados por vírgulas)",
+        chipSortLabel: "Ordenar chips:",
+        themeLabel: "Tema",
+        chipSortDefault: "Padrão",
+        chipSortAZ: "A-Z",
+        chipSortZA: "Z-A",
+        chipSortCompact: "Inteligente",
+        compatCount: "{count} de {total} mods ({percent}%)",
+        themeDefault: "Padrão",
+        themeDark: "Escuro",
+        themeLight: "Claro",
+        themeSepia: "Sépia",
+        themeSepiaDark: "Sépia escuro",
+        themeOled: "OLED",
+        themeModrinth: "Modrinth",
+        themeMinecraft: "Minecraft",
+        loaderLabel: "Modloader",
+        loaderNote: "Você pode trocar o Modloader e reanalisar com a mesma lista de mods.",
+        modsToAnalyze: "{count} mods para analisar",
+        searchLabel: "Buscar mods no Modrinth",
+        searchPlaceholder: "Ex.: sodium, lithium, replay mod",
+        searchBtn: "Buscar e adicionar",
+        searchLoading: "Buscando mods...",
+        filterModeLabel: "Pré-filtro por versão",
+        filterModeAllExcept: "Todas as versões exceto...",
+        filterModeOnly: "Apenas estas versões...",
+        versionFiltersLabel: "Lista de versões (opcional)",
+        snapshotsLabel: "Snapshots",
+        snapshotsInclude: "Incluir snapshots",
+        prereleaseLabel: "Pré-releases",
+        prereleaseInclude: "Incluir pré-releases",
+        analyzeBtn: "Analisar Compatibilidade",
+        resetBtn: "Resetar",
+        analyzingText: "Analisando no Modrinth...",
+        sortHint: "Clique nos cabeçalhos para ordenar.",
+        displayFilterLabel: "Filtrar resultados exibidos",
+        displayVersionFiltersLabel: "Versões a incluir/excluir",
+        displaySnapshotsLabel: "Snapshots",
+        displaySnapshotsToggle: "Mostrar snapshots",
+        displayPrereleaseLabel: "Pré-releases",
+        displayPrereleaseToggle: "Mostrar pré-releases",
+        tableVersion: "Versão do Minecraft",
+        tableCount: "Mods compatíveis",
+        tableDetails: "Detalhes",
+        tableNoData: "Sem dados ainda. Execute uma análise.",
+        noMods: "Nenhum mod adicionado.",
+        invalidNote: "Detectamos links que não são do Modrinth ou que não são mods (apenas mods):",
+        invalidSuffix: "(ignorados)",
+        noResults: "Sem resultados.",
+        searchError: "Erro na busca",
+        recommended: "Versão recomendada: {version} ({count} de {total} mods)",
+        noRecommended: "Sem resultados disponíveis",
+        viewMods: "Ver mods",
+        hideMods: "Ocultar",
+        listCompat: "Compatíveis",
+        listIncompat: "Não compatíveis",
+        none: "Nenhum",
+        allCompat: "Todos são compatíveis",
+        footer: "Dados via API do Modrinth.",
+        guideTitle: "Guia rápido de filtros",
+        guideItems: [
+          "<code>1.20, 1.21.2</code> → apenas essas versões exatas.",
+          "<code>1.21.x</code> → todas as versões da série 1.21.",
+          "<code>1.18-1.21.2</code> → intervalo inclusivo de 1.18.0 a 1.21.2.",
+          "Snapshot = versão que não começa com <code>1.</code> (checkbox \"Snapshots\").",
+          "Pré-release = versão com hífen (ex.: <code>1.20.1-rc1</code>) (\"Pre-releases\").",
+          "Busque mods e adicione com um clique.",
+          "Use pré-filtros antes de analisar ou filtros de exibição depois.",
+        ],
+      },
+      fr: {
+        langLabel: "Langue",
+        title: "Analyseur de Compatibilité de Mods",
+        subtitle: "Collez des URLs ou IDs Modrinth et trouvez la version Minecraft la plus compatible.",
+        inputLabel: "Liens ou IDs (un par ligne ou séparés par des virgules)",
+        chipSortLabel: "Trier les chips :",
+        themeLabel: "Thème",
+        chipSortDefault: "Par défaut",
+        chipSortAZ: "A-Z",
+        chipSortZA: "Z-A",
+        chipSortCompact: "Intelligent",
+        compatCount: "{count} sur {total} mods ({percent}%)",
+        themeDefault: "Par défaut",
+        themeDark: "Sombre",
+        themeLight: "Clair",
+        themeSepia: "Sépia",
+        themeSepiaDark: "Sépia foncé",
+        themeOled: "OLED",
+        themeModrinth: "Modrinth",
+        themeMinecraft: "Minecraft",
+        loaderLabel: "Modloader",
+        loaderNote: "Vous pouvez changer de modloader et relancer l’analyse avec la même liste de mods.",
+        modsToAnalyze: "{count} mods à analyser",
+        searchLabel: "Rechercher des mods sur Modrinth",
+        searchPlaceholder: "Ex : sodium, lithium, replay mod",
+        searchBtn: "Rechercher et ajouter",
+        searchLoading: "Recherche de mods...",
+        filterModeLabel: "Pré-filtre par version",
+        filterModeAllExcept: "Toutes les versions sauf...",
+        filterModeOnly: "Seulement ces versions...",
+        versionFiltersLabel: "Liste des versions (optionnel)",
+        snapshotsLabel: "Snapshots",
+        snapshotsInclude: "Inclure les snapshots",
+        prereleaseLabel: "Pré-releases",
+        prereleaseInclude: "Inclure les pré-releases",
+        analyzeBtn: "Analyser la compatibilité",
+        resetBtn: "Réinitialiser",
+        analyzingText: "Analyse sur Modrinth...",
+        sortHint: "Cliquez sur les en-têtes pour trier.",
+        displayFilterLabel: "Filtrer les résultats affichés",
+        displayVersionFiltersLabel: "Versions à inclure/exclure",
+        displaySnapshotsLabel: "Snapshots",
+        displaySnapshotsToggle: "Afficher les snapshots",
+        displayPrereleaseLabel: "Pré-releases",
+        displayPrereleaseToggle: "Afficher les pré-releases",
+        tableVersion: "Version de Minecraft",
+        tableCount: "Mods compatibles",
+        tableDetails: "Détails",
+        tableNoData: "Pas encore de données. Lancez une analyse.",
+        noMods: "Aucun mod ajouté.",
+        invalidNote: "Nous avons détecté des liens qui ne viennent pas de Modrinth ou ne sont pas des mods (mods uniquement) :",
+        invalidSuffix: "(ignorés)",
+        noResults: "Aucun résultat.",
+        searchError: "Erreur de recherche",
+        recommended: "Version recommandée : {version} ({count} sur {total} mods)",
+        noRecommended: "Aucun résultat disponible",
+        viewMods: "Voir les mods",
+        hideMods: "Masquer",
+        listCompat: "Compatibles",
+        listIncompat: "Non compatibles",
+        none: "Aucun",
+        allCompat: "Tous sont compatibles",
+        footer: "Données via l'API Modrinth.",
+        guideTitle: "Guide rapide des filtres",
+        guideItems: [
+          "<code>1.20, 1.21.2</code> → seulement ces versions exactes.",
+          "<code>1.21.x</code> → toutes les versions de la série 1.21.",
+          "<code>1.18-1.21.2</code> → plage inclusive de 1.18.0 à 1.21.2.",
+          "Snapshot = version ne commençant pas par <code>1.</code> (case \"Snapshots\").",
+          "Pré-release = version avec tiret (ex. <code>1.20.1-rc1</code>) (case \"Pre-releases\").",
+          "Cherchez des mods et ajoutez-les en un clic.",
+          "Utilisez les pré-filtres avant d'analyser ou les filtres d'affichage ensuite.",
+        ],
+      },
+      de: {
+        langLabel: "Sprache",
+        title: "Mod-Kompatibilitäts-Analyzer",
+        subtitle: "Füge Modrinth-URLs oder IDs ein und finde die kompatibelste Minecraft-Version.",
+        inputLabel: "Links oder IDs (eine pro Zeile oder durch Kommas getrennt)",
+        chipSortLabel: "Chips sortieren:",
+        themeLabel: "Thema",
+        chipSortDefault: "Standard",
+        chipSortAZ: "A-Z",
+        chipSortZA: "Z-A",
+        chipSortCompact: "Intelligent",
+        compatCount: "{count} von {total} Mods ({percent}%)",
+        themeDefault: "Standard",
+        themeDark: "Dunkel",
+        themeLight: "Hell",
+        themeSepia: "Sepia",
+        themeSepiaDark: "Sepia dunkel",
+        themeOled: "OLED",
+        themeModrinth: "Modrinth",
+        themeMinecraft: "Minecraft",
+        loaderLabel: "Modloader",
+        loaderNote: "Du kannst den Modloader wechseln und die Analyse mit derselben Mod-Liste erneut ausführen.",
+        modsToAnalyze: "{count} Mods zu analysieren",
+        searchLabel: "Mods auf Modrinth suchen",
+        searchPlaceholder: "z.B. sodium, lithium, replay mod",
+        searchBtn: "Suchen & hinzufügen",
+        searchLoading: "Mods werden gesucht...",
+        filterModeLabel: "Vorfilter nach Version",
+        filterModeAllExcept: "Alle Versionen außer...",
+        filterModeOnly: "Nur diese Versionen...",
+        versionFiltersLabel: "Versionsliste (optional)",
+        snapshotsLabel: "Snapshots",
+        snapshotsInclude: "Snapshots einschließen",
+        prereleaseLabel: "Pre-Releases",
+        prereleaseInclude: "Pre-Releases einschließen",
+        analyzeBtn: "Kompatibilität analysieren",
+        resetBtn: "Zurücksetzen",
+        analyzingText: "Analysiere auf Modrinth...",
+        sortHint: "Klicke auf Spaltenüberschriften zum Sortieren.",
+        displayFilterLabel: "Angezeigte Ergebnisse filtern",
+        displayVersionFiltersLabel: "Versionen ein-/ausschließen",
+        displaySnapshotsLabel: "Snapshots",
+        displaySnapshotsToggle: "Snapshots anzeigen",
+        displayPrereleaseLabel: "Pre-Releases",
+        displayPrereleaseToggle: "Pre-Releases anzeigen",
+        tableVersion: "Minecraft-Version",
+        tableCount: "Kompatible Mods",
+        tableDetails: "Details",
+        tableNoData: "Noch keine Daten. Analyse starten.",
+        noMods: "Keine Mods hinzugefügt.",
+        invalidNote: "Wir haben Links erkannt, die nicht von Modrinth stammen oder keine Mods sind (nur Mods):",
+        invalidSuffix: "(ignoriert)",
+        noResults: "Keine Ergebnisse.",
+        searchError: "Fehler bei der Suche",
+        recommended: "Empfohlene Version: {version} ({count} von {total} Mods)",
+        noRecommended: "Keine Ergebnisse verfügbar",
+        viewMods: "Mods anzeigen",
+        hideMods: "Verbergen",
+        listCompat: "Kompatibel",
+        listIncompat: "Nicht kompatibel",
+        none: "Keine",
+        allCompat: "Alle sind kompatibel",
+        footer: "Daten über die Modrinth-API.",
+        guideTitle: "Kurzanleitung Filter",
+        guideItems: [
+          "<code>1.20, 1.21.2</code> → nur diese exakten Versionen.",
+          "<code>1.21.x</code> → alle Versionen der 1.21-Reihe.",
+          "<code>1.18-1.21.2</code> → inkl. Bereich 1.18.0 bis 1.21.2.",
+          "Snapshot = Version, die nicht mit <code>1.</code> beginnt (\"Snapshots\").",
+          "Pre-Release = Version mit Bindestrich (z.B. <code>1.20.1-rc1</code>) (\"Pre-releases\").",
+          "Suche oben nach Mods und füge sie mit einem Klick hinzu.",
+          "Nutze Vorfilter vor der Analyse oder Anzeige-Filter danach.",
+        ],
+      },
+      zh: {
+        langLabel: "语言",
+        title: "模组兼容性分析器",
+        subtitle: "粘贴 Modrinth 链接或 ID，找出最兼容的 Minecraft 版本。",
+        inputLabel: "链接或 ID（每行一个或用逗号分隔）",
+        chipSortLabel: "排序:",
+        themeLabel: "主题",
+        chipSortDefault: "默认",
+        chipSortAZ: "A-Z",
+        chipSortZA: "Z-A",
+        chipSortCompact: "紧凑",
+        compatCount: "{count}/{total} 模组 ({percent}%)",
+        themeDefault: "默认",
+        themeDark: "深色",
+        themeLight: "浅色",
+        themeSepia: "棕褐",
+        themeSepiaDark: "深棕褐",
+        themeOled: "OLED",
+        themeModrinth: "Modrinth",
+        themeMinecraft: "Minecraft",
+          loaderLabel: "Modloader",
+          loaderNote: "你可以切换 Modloader 并用同一模组列表重新分析。",
+          modsToAnalyze: "待分析 {count} 个模组",
+        searchLabel: "在 Modrinth 搜索模组",
+        searchPlaceholder: "如：sodium, lithium, replay mod",
+        searchBtn: "搜索并添加",
+        searchLoading: "搜索中...",
+        filterModeLabel: "按版本预过滤",
+        filterModeAllExcept: "除以下版本外全部",
+        filterModeOnly: "仅这些版本",
+        versionFiltersLabel: "版本列表（可选）",
+        snapshotsLabel: "快照",
+        snapshotsInclude: "包含快照",
+        prereleaseLabel: "预发布",
+        prereleaseInclude: "包含预发布",
+        analyzeBtn: "分析兼容性",
+        resetBtn: "重置",
+        analyzingText: "Modrinth 分析中...",
+        sortHint: "点击表头排序。",
+        displayFilterLabel: "显示结果过滤",
+        displayVersionFiltersLabel: "包含/排除的版本",
+        displaySnapshotsLabel: "快照",
+        displaySnapshotsToggle: "显示快照",
+        displayPrereleaseLabel: "预发布",
+        displayPrereleaseToggle: "显示预发布",
+        tableVersion: "Minecraft 版本",
+        tableCount: "兼容模组数",
+        tableDetails: "详情",
+        tableNoData: "暂无数据，请先分析。",
+        noMods: "尚未添加模组。",
+        invalidNote: "检测到非 Modrinth 链接（仅支持模组）：",
+        invalidSuffix: "（已忽略）",
+        noResults: "没有结果。",
+        searchError: "搜索错误",
+        recommended: "推荐版本：{version}（{count}/{total} 模组）",
+        noRecommended: "暂无结果",
+        viewMods: "查看模组",
+        hideMods: "隐藏",
+        listCompat: "兼容",
+        listIncompat: "不兼容",
+        none: "无",
+        allCompat: "全部兼容",
+        footer: "数据来自 Modrinth API。",
+        guideTitle: "过滤器快速指南",
+        guideItems: [
+          "<code>1.20, 1.21.2</code> → 仅这些精确版本。",
+          "<code>1.21.x</code> → 1.21 分支的所有版本。",
+          "<code>1.18-1.21.2</code> → 从 1.18.0 到 1.21.2（含）。",
+          "快照 = 不以 <code>1.</code> 开头的版本（“Snapshots”）。",
+          "预发布 = 带连字符的版本（如 <code>1.20.1-rc1</code>）(\"Pre-releases\").",
+          "在上方搜索并一键添加模组。",
+          "分析前使用预过滤，分析后使用显示过滤。",
+        ],
+      },
+      ja: {
+        langLabel: "言語",
+        title: "Mod互換性チェッカー",
+        subtitle: "ModrinthのURL/IDを貼り付けて最適なMinecraftバージョンを見つけます。",
+        inputLabel: "リンクまたはID（1行に1つ、またはカンマ区切り）",
+        chipSortLabel: "並べ替え:",
+        themeLabel: "テーマ",
+        chipSortDefault: "デフォルト",
+        chipSortAZ: "A-Z",
+        chipSortZA: "Z-A",
+        chipSortCompact: "コンパクト",
+        compatCount: "{count}/{total} Mod ({percent}%)",
+        themeDefault: "デフォルト",
+        themeDark: "ダーク",
+        themeLight: "ライト",
+        themeSepia: "セピア",
+        themeSepiaDark: "ダークセピア",
+        themeOled: "OLED",
+        themeModrinth: "Modrinth",
+        themeMinecraft: "Minecraft",
+          loaderLabel: "Modloader",
+          loaderNote: "Modloader を変えて同じ mod リストで再解析できます。",
+          modsToAnalyze: "分析対象のモッド: {count}",
+        searchLabel: "ModrinthでMod検索",
+        searchPlaceholder: "例: sodium, lithium, replay mod",
+        searchBtn: "検索して追加",
+        searchLoading: "検索中...",
+        filterModeLabel: "バージョンで事前フィルター",
+        filterModeAllExcept: "除外以外すべて",
+        filterModeOnly: "これらのみ",
+        versionFiltersLabel: "バージョン一覧（任意）",
+        snapshotsLabel: "スナップショット",
+        snapshotsInclude: "スナップショットを含める",
+        prereleaseLabel: "プレリリース",
+        prereleaseInclude: "プレリリースを含める",
+        analyzeBtn: "互換性を分析",
+        resetBtn: "リセット",
+        analyzingText: "Modrinthで分析中...",
+        sortHint: "ヘッダークリックで並べ替え。",
+        displayFilterLabel: "表示結果のフィルター",
+        displayVersionFiltersLabel: "含める/除外するバージョン",
+        displaySnapshotsLabel: "スナップショット",
+        displaySnapshotsToggle: "スナップショットを表示",
+        displayPrereleaseLabel: "プレリリース",
+        displayPrereleaseToggle: "プレリリースを表示",
+        tableVersion: "Minecraftバージョン",
+        tableCount: "互換Mod数",
+        tableDetails: "詳細",
+        tableNoData: "データなし。分析を実行してください。",
+        noMods: "Modが追加されていません。",
+        invalidNote: "Modrinth以外のリンクを検出（Modのみ対応）：",
+        invalidSuffix: "（無視）",
+        noResults: "結果なし。",
+        searchError: "検索エラー",
+        recommended: "推奨バージョン: {version}（{total}中{count} Mod）",
+        noRecommended: "結果がありません",
+        viewMods: "Modを見る",
+        hideMods: "隠す",
+        listCompat: "互換",
+        listIncompat: "非互換",
+        none: "なし",
+        allCompat: "すべて互換",
+        footer: "データ提供: Modrinth API。",
+        guideTitle: "フィルター簡易ガイド",
+        guideItems: [
+          "<code>1.20, 1.21.2</code> → そのバージョンのみ。",
+          "<code>1.21.x</code> → 1.21系の全バージョン。",
+          "<code>1.18-1.21.2</code> → 1.18.0〜1.21.2（含む）。",
+          "スナップショット = <code>1.</code> で始まらないもの（\"Snapshots\"）。",
+          "プレリリース = ハイフン付き（例: <code>1.20.1-rc1</code>）(\"Pre-releases\").",
+          "上部で検索し、クリックで追加。",
+          "分析前の事前フィルターか、表示フィルターを活用。",
+        ],
+      },
+      ru: {
+        langLabel: "Язык",
+        title: "Анализатор совместимости модов",
+        subtitle: "Вставьте ссылки или ID Modrinth и найдите наиболее совместимую версию Minecraft.",
+        inputLabel: "Ссылки или ID (по одной в строке или через запятую)",
+        chipSortLabel: "Сортировка чипсов:",
+        themeLabel: "Тема",
+        chipSortDefault: "По умолчанию",
+        chipSortAZ: "A-Z",
+        chipSortZA: "Z-A",
+        chipSortCompact: "Компактно",
+        compatCount: "{count} из {total} модов ({percent}%)",
+        themeDefault: "По умолчанию",
+        themeDark: "Тёмная",
+        themeLight: "Светлая",
+        themeSepia: "Сепия",
+        themeSepiaDark: "Тёмная сепия",
+        themeOled: "OLED",
+        themeModrinth: "Modrinth",
+        themeMinecraft: "Minecraft",
+          loaderLabel: "Modloader",
+          loaderNote: "Можно сменить модлоадер и повторно запустить анализ с тем же списком модов.",
+          modsToAnalyze: "Модов к анализу: {count}",
+        searchLabel: "Поиск модов на Modrinth",
+        searchPlaceholder: "Напр.: sodium, lithium, replay mod",
+        searchBtn: "Искать и добавить",
+        searchLoading: "Поиск модов...",
+        filterModeLabel: "Предварительный фильтр по версии",
+        filterModeAllExcept: "Все версии, кроме...",
+        filterModeOnly: "Только эти версии...",
+        versionFiltersLabel: "Список версий (необязательно)",
+        snapshotsLabel: "Снапшоты",
+        snapshotsInclude: "Включить снапшоты",
+        prereleaseLabel: "Пре-релизы",
+        prereleaseInclude: "Включить пре-релизы",
+        analyzeBtn: "Анализ совместимости",
+        resetBtn: "Сброс",
+        analyzingText: "Анализ на Modrinth...",
+        sortHint: "Нажмите на заголовки столбцов для сортировки.",
+        displayFilterLabel: "Фильтр отображаемых результатов",
+        displayVersionFiltersLabel: "Версии для включения/исключения",
+        displaySnapshotsLabel: "Снапшоты",
+        displaySnapshotsToggle: "Показывать снапшоты",
+        displayPrereleaseLabel: "Пре-релизы",
+        displayPrereleaseToggle: "Показывать пре-релизы",
+        tableVersion: "Версия Minecraft",
+        tableCount: "Совместимые моды",
+        tableDetails: "Детали",
+        tableNoData: "Нет данных. Запустите анализ.",
+        noMods: "Моды не добавлены.",
+        invalidNote: "Обнаружены не-Modrinth ссылки (поддерживаются только моды):",
+        invalidSuffix: "(игнорируются)",
+        noResults: "Нет результатов.",
+        searchError: "Ошибка поиска",
+        recommended: "Рекомендуемая версия: {version} ({count} из {total} модов)",
+        noRecommended: "Нет доступных результатов",
+        viewMods: "Показать моды",
+        hideMods: "Скрыть",
+        listCompat: "Совместимые",
+        listIncompat: "Несовместимые",
+        none: "Нет",
+        allCompat: "Все совместимы",
+        footer: "Данные через API Modrinth.",
+        guideTitle: "Краткое руководство по фильтрам",
+        guideItems: [
+          "<code>1.20, 1.21.2</code> → только эти точные версии.",
+          "<code>1.21.x</code> → все версии ветки 1.21.",
+          "<code>1.18-1.21.2</code> → диапазон 1.18.0–1.21.2 включительно.",
+          "Снапшот = версия, не начинающаяся с <code>1.</code> (\"Snapshots\").",
+          "Пре-релиз = версия с дефисом (напр. <code>1.20.1-rc1</code>) (\"Pre-releases\").",
+          "Ищите моды сверху и добавляйте одним кликом.",
+          "Используйте предварительные фильтры перед анализом или фильтры отображения после.",
+        ],
+      },
+    };
+
+    let rawResults = [];
+    let rows = [];
+    let currentSort = { column: "count", direction: "desc" };
+    const expandedVersions = new Set();
+
+    function setLoading(isLoading) {
+      loader.classList.toggle("active", isLoading);
+      btn.disabled = isLoading;
+    }
+
+    function t(key) {
+      return (translations[currentLang] && translations[currentLang][key]) || translations["es"][key] || key;
+    }
+
+    function applyTranslations() {
+      const setText = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+      };
+      setText("langLabel", t("langLabel"));
+      setText("titleMain", t("title"));
+      setText("subtitle", t("subtitle"));
+      setText("inputLabel", t("inputLabel"));
+      setText("chipSortLabel", t("chipSortLabel"));
+        setText("themeLabel", t("themeLabel"));
+        Array.from(themeSelect.options).forEach((opt) => {
+          const key = opt.dataset.key;
+          if (key && translations[currentLang][key]) {
+            opt.textContent = translations[currentLang][key];
+          }
+        });
+        setText("loaderLabel", t("loaderLabel"));
+        setText("loaderHint", t("loaderNote"));
+        const countEl = document.getElementById("modsCount");
+        if (countEl) countEl.textContent = t("modsToAnalyze").replace("{count}", currentMods.length);
+
+      const chipSortOptions = chipSort.options;
+      chipSortOptions[0].textContent = t("chipSortDefault");
+      chipSortOptions[1].textContent = t("chipSortAZ");
+      chipSortOptions[2].textContent = t("chipSortZA");
+      chipSortOptions[3].textContent = t("chipSortCompact");
+
+        setText("searchLabel", t("searchLabel"));
+        searchInput.placeholder = t("searchPlaceholder");
+        searchBtn.title = t("searchBtn");
+        searchBtn.setAttribute("aria-label", t("searchBtn"));
+        searchBtn.innerHTML = `<span class="icon-search"></span>`;
+        setText("searchLoaderText", t("searchLoading"));
+
+        setText("analyzeBtn", t("analyzeBtn"));
+        setText("analyzingText", t("analyzingText"));
+        if (resetBtn) {
+          resetBtn.title = t("resetBtn");
+          resetBtn.setAttribute("aria-label", t("resetBtn"));
+        }
+
+      setText("sortHint", t("sortHint"));
+
+      setText("displayFilterLabel", t("displayFilterLabel"));
+      const showAllMap = {
+        es: "Mostrar todas",
+        pt: "Mostrar todas",
+        fr: "Tout afficher",
+        de: "Alle anzeigen",
+        zh: "显示全部",
+        ja: "すべて表示",
+        ru: "Показать все",
+      };
+      const allExceptMap = {
+        es: "Todas excepto...",
+        pt: "Todas exceto...",
+        fr: "Toutes sauf...",
+        de: "Alle außer...",
+        zh: "除以下之外全部",
+        ja: "除外以外すべて",
+        ru: "Все кроме...",
+      };
+      const onlyMap = {
+        es: "Solo estas...",
+        pt: "Apenas estas...",
+        fr: "Seulement celles-ci...",
+        de: "Nur diese...",
+        zh: "仅这些...",
+        ja: "これらのみ...",
+        ru: "Только эти...",
+      };
+      displayFilterModeOptions[0].textContent = showAllMap[currentLang] || "Show all";
+      displayFilterModeOptions[1].textContent = allExceptMap[currentLang] || "All except...";
+      displayFilterModeOptions[2].textContent = onlyMap[currentLang] || "Only these...";
+
+      setText("displayVersionFiltersLabel", t("displayVersionFiltersLabel"));
+      setText("displaySnapshotsLabel", t("displaySnapshotsLabel"));
+      setText("displaySnapshotsToggle", t("displaySnapshotsToggle"));
+      setText("displayPrereleaseLabel", t("displayPrereleaseLabel"));
+      setText("displayPrereleaseToggle", t("displayPrereleaseToggle"));
+
+      setText("tableVersion", t("tableVersion"));
+      setText("tableCount", t("tableCount"));
+      setText("tableDetails", t("tableDetails"));
+
+      setText("guideTitle", t("guideTitle"));
+      const guideList = document.getElementById("guideList");
+      if (guideList) {
+        guideList.innerHTML = (t("guideItems") || [])
+          .map((item) => `<li>${item}</li>`)
+          .join("");
+      }
+
+      setText("footerText", t("footer"));
+      document.getElementById("input").placeholder = "https://modrinth.com/mod/sodium\nhttps://modrinth.com/mod/lithium";
+    }
+
+    function applyTheme(themeKey) {
+      const theme = themes[themeKey] || themes["default"];
+      const root = document.documentElement;
+      Object.entries(theme).forEach(([key, val]) => root.style.setProperty(key, val));
+    }
+
+    const parseVersionList = (value) =>
+      (value || "")
+        .split(/[,\\n\\r]+/)
+        .map((v) => v.trim())
+        .filter(Boolean);
+
+    function versionToTuple(version) {
+      const parts = version.split(/[.\-]/).filter(Boolean);
+      const nums = [];
+      for (const p of parts) {
+        const match = p.match(/^(\d+)/);
+        if (!match) break;
+        nums.push(parseInt(match[1], 10));
+        if (nums.length >= 3) break;
+      }
+      while (nums.length < 3) nums.push(0);
+      return nums;
+    }
+
+    function compareTuples(a, b) {
+      for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        const av = a[i] ?? 0;
+        const bv = b[i] ?? 0;
+        if (av !== bv) return av - bv;
+      }
+      return 0;
+    }
+
+    function matchesExpression(version, expression) {
+      const expr = (expression || "").trim();
+      if (!expr) return false;
+      if (expr.endsWith(".x")) {
+        const prefix = expr.slice(0, -2);
+        return version === prefix || version.startsWith(prefix + ".");
+      }
+      if (expr.includes("-")) {
+        const [start, end] = expr.split("-", 2);
+        const vt = versionToTuple(version);
+        return compareTuples(versionToTuple(start), vt) <= 0 && compareTuples(vt, versionToTuple(end)) <= 0;
+      }
+      return version === expr;
+    }
+
+    function shouldIncludeVersion(item, mode, filters, allowSnapshots, allowPrereleases) {
+      if (!allowSnapshots && item.is_snapshot) return false;
+      if (!allowPrereleases && item.is_prerelease) return false;
+      if (!filters.length || mode === "all") return true;
+      const matches = filters.some((f) => matchesExpression(item.version, f));
+      if (mode === "only") return matches;
+      if (mode === "all_except") return !matches;
+      return true;
+    }
+
+    function applyDisplayFilters() {
+      const mode = displayFilterMode.value;
+      const filters = parseVersionList(displayVersionFilters.value);
+      const allowSnapshots = displaySnapshots.checked;
+      const allowPrereleases = displayPrereleases.checked;
+      rows = rawResults.filter((item) => shouldIncludeVersion(item, mode, filters, allowSnapshots, allowPrereleases));
+      renderTable();
+    }
+
+    function renderTable() {
+      if (!rows.length) {
+        resultsBody.innerHTML = `<tr><td colspan="3" class="muted">${t("tableNoData")}</td></tr>`;
+        recommendation.textContent = "";
+        return;
+      }
+
+      const sorted = [...rows].sort((a, b) => {
+        let dir = currentSort.direction === "asc" ? 1 : -1;
+        if (currentSort.column === "version") {
+          return a.version.localeCompare(b.version, undefined, { numeric: true }) * dir;
+        }
+        return (a.count - b.count) * dir;
+      });
+
+      const recommended = sorted.reduce((best, item) => {
+        if (!best || item.count > best.count || (item.count === best.count && item.version < best.version)) {
+          return item;
+        }
+        return best;
+      }, null);
+
+      recommendation.textContent = recommended
+        ? t("recommended")
+            .replace("{version}", recommended.version)
+            .replace("{count}", recommended.count)
+            .replace("{total}", recommended.total)
+        : t("noRecommended");
+
+      resultsBody.innerHTML = sorted
+        .map((item) => {
+          const highlight = recommended && item.version === recommended.version ? "recommended" : "";
+          const isOpen = expandedVersions.has(item.version);
+          const snapshotBadge = item.is_snapshot ? '<span class="chip slim" style="background:rgba(252,211,77,0.1);color:#fbbf24;border-color:rgba(252,211,77,0.35);">Snapshot</span>' : "";
+          const prereleaseBadge = item.is_prerelease ? '<span class="chip slim" style="background:rgba(251,146,60,0.1);color:#fb923c;border-color:rgba(251,146,60,0.35);">Pre-release</span>' : "";
+          const compatList = `<div><div class="list-title">${t("listCompat")}</div><div class="chips">${item.compatible_mods
+            .map((m) => `<a href="${m.url}" target="_blank" rel="noopener" class="chip slim" style="text-decoration:none;color:inherit;">${m.label}</a>`)
+            .join("") || `<span class='muted'>${t("none")}</span>`}</div></div>`;
+          const incompatList = `<div><div class="list-title">${t("listIncompat")}</div><div class="chips">${item.incompatible_mods
+            .map((m) => `<a href="${m.url}" target="_blank" rel="noopener" class="chip slim" style="background:rgba(248,113,113,0.1);color:#fca5a5;border-color:rgba(248,113,113,0.35);text-decoration:none;">${m.label}</a>`)
+            .join("") || `<span class='muted'>${t("allCompat")}</span>`}</div></div>`;
+          const otherLoader = item.other_loader_mods || {};
+          const otherBlocks = Object.entries(otherLoader)
+            .map(
+              ([key, mods]) => `
+                <div class="other-loader-block">
+                  <div class="list-title">${loaderNames[key] || key}</div>
+                  <div class="chips">
+                    ${mods
+                      .map((m) => `<a href="${m.url}" target="_blank" rel="noopener" class="chip slim" style="background:rgba(248,211,77,0.1);color:#fbbf24;border-color:rgba(248,211,77,0.35);text-decoration:none;">${m.label}</a>`)
+                      .join("") || `<span class='muted'>${t("none")}</span>`}
+                  </div>
+                </div>
+              `
+            )
+            .join("");
+
+          const detailRow = isOpen
+            ? `<tr class="details-row"><td colspan="3"><div class="details">${compatList}${incompatList}${otherBlocks ? `<div class="other-stack">${otherBlocks}</div>` : ""}</div></td></tr>`
+            : "";
+
+          return `
+            <tr class="${highlight}">
+              <td>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <span>${item.version} ${snapshotBadge} ${prereleaseBadge}</span>
+                  <button class="copy-btn" data-version="${item.version}">📋</button>
+                </div>
+              </td>
+              <td><span class="chip">${t("compatCount")
+                .replace("{count}", item.count)
+                .replace("{total}", item.total)
+                .replace("{percent}", item.percent)}</span></td>
+              <td><button data-version="${item.version}" class="toggle-row">${isOpen ? t("hideMods") : t("viewMods")}</button></td>
+            </tr>
+            ${detailRow}
+          `;
+        })
+        .join("");
+
+      // Attach listeners for toggle buttons
+      document.querySelectorAll(".toggle-row").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          const v = e.currentTarget.getAttribute("data-version");
+          if (expandedVersions.has(v)) {
+            expandedVersions.delete(v);
+          } else {
+            expandedVersions.add(v);
+          }
+          renderTable();
+        });
+      });
+      document.querySelectorAll(".copy-btn").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          const v = e.currentTarget.getAttribute("data-version");
+          copyVersion(v);
+        });
+      });
+    }
+
+    async function analyze() {
+      const urls = document.getElementById("input").value.trim();
+      errorsEl.textContent = "";
+      setLoading(true);
+      try {
+        const resp = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            urls,
+            versionFilterMode: "all_except",
+            versionFilters: "",
+            includeSnapshots: true,
+            includePrereleases: true,
+            loader: loaderSelect.value,
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          throw new Error(data.error || "Error al analizar.");
+        }
+        rawResults = data.results || [];
+        applyDisplayFilters();
+        if (data.errors && data.errors.length) {
+          errorsEl.textContent = data.errors.join(" · ");
+        }
+      } catch (err) {
+        errorsEl.textContent = err.message || "Error desconocido";
+        rawResults = [];
+        rows = [];
+        renderTable();
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function resetAll() {
+      document.getElementById("input").value = "";
+      currentMods = [];
+      invalidEntries = [];
+      rawResults = [];
+      rows = [];
+      errorsEl.textContent = "";
+      renderModsPreview();
+      renderTable();
+    }
+
+    function buildVersionText(version) {
+      const item = rows.find((r) => r.version === version);
+      if (!item) return "";
+      const loaderName = loaderNames[loaderSelect.value] || loaderSelect.value;
+      const header = `${t("tableVersion")}: ${item.version} (${item.percent}%)\n${t("tableCount")}: ${t("compatCount")
+        .replace("{count}", item.count)
+        .replace("{total}", item.total)
+        .replace("{percent}", item.percent)} (${loaderName})`;
+      const compat = `${t("listCompat")} (${item.compatible_mods.length}/${item.total}):\n${item.compatible_mods
+        .map((m) => `- ${m.label} (${m.url})`)
+        .join("\n") || t("none")}`;
+      const incompat = `${t("listIncompat")} (${item.incompatible_mods.length}/${item.total}):\n${item.incompatible_mods
+        .map((m) => `- ${m.label} (${m.url})`)
+        .join("\n") || t("none")}`;
+      const other = item.other_loader_mods || {};
+      const otherText = Object.entries(other)
+        .map(
+          ([key, mods]) =>
+            `${t("otherLoaderTitle") || "Compatibles en otros loaders"} - ${loaderNames[key] || key} (${mods.length}/${item.total}):\n${
+              mods.map((m) => `- ${m.label} (${m.url})`).join("\n") || t("none")
+            }`
+        )
+        .join("\n\n");
+      return [header, compat, incompat, otherText].filter(Boolean).join("\n\n");
+    }
+
+    function copyVersion(version) {
+      const text = buildVersionText(version);
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(
+        () => {
+          errorsEl.textContent = t("copySuccess") || "Copiado";
+          setTimeout(() => {
+            if (errorsEl.textContent === (t("copySuccess") || "Copiado")) errorsEl.textContent = "";
+          }, 2000);
+        },
+        () => {
+          errorsEl.textContent = t("copyError") || "No se pudo copiar";
+        }
+      );
+    }
+
+    btn.addEventListener("click", analyze);
+    if (resetBtn) {
+      resetBtn.addEventListener("click", resetAll);
+    }
+    document.querySelectorAll("th[data-column]").forEach((th) => {
+      th.addEventListener("click", () => {
+        const col = th.dataset.column;
+        if (currentSort.column === col) {
+          currentSort.direction = currentSort.direction === "asc" ? "desc" : "asc";
+        } else {
+          currentSort.column = col;
+          currentSort.direction = "asc";
+        }
+        renderTable();
+      });
+    });
+
+    [displayFilterMode, displayVersionFilters, displaySnapshots, displayPrereleases].forEach((el) => {
+      el.addEventListener("input", applyDisplayFilters);
+      el.addEventListener("change", applyDisplayFilters);
+    });
+
+    const extractSlug = (text) => {
+      const match = text.match(/modrinth\.com\/mod\/([^/?#]+)/i);
+      if (match) return match[1];
+      const isUrl = /^https?:\/\//i.test(text);
+      if (isUrl) return null;
+      return text.replace(/^mr:/i, "").trim() || null;
+    };
+
+    const slugToName = (slug) =>
+      (slug || "")
+        .replace(/[-_]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/\b\w/g, (c) => c.toUpperCase()) || slug;
+
+    function parseInputMods(raw) {
+      invalidEntries = [];
+      return (raw || "")
+        .split(/[,\n\r]+/)
+        .map((v) => v.trim())
+        .filter(Boolean)
+        .map((entry, idx) => {
+          const slug = extractSlug(entry);
+          if (!slug) {
+            invalidEntries.push(entry);
+            return null;
+          }
+          const url = `https://modrinth.com/mod/${slug}`;
+          return { slug, url, name: slugToName(slug), raw: entry, downloads: 0, order: idx };
+        })
+        .filter(Boolean);
+    }
+
+    function renderModsPreview() {
+      const invalidBox = document.getElementById("invalidList");
+      if (!currentMods.length && !invalidEntries.length) {
+        modsPreview.innerHTML = `<span class="muted" style="font-size:12px;">${t("noMods")}</span>`;
+        invalidBox.textContent = "";
+        const countEl = document.getElementById("modsCount");
+        if (countEl) countEl.textContent = t("modsToAnalyze").replace("{count}", 0);
+        return;
+      }
+      const sortedMods = sortModsForView();
+      const chips = sortedMods
+        .map(
+          (m, idx) => `
+            <div class="mod-chip" data-slug="${m.slug}" title="Doble clic para quitar">
+              <a class="chip-link" href="${m.url}" target="_blank" rel="noopener">↗</a>
+              <span class="chip-text">${m.name}</span>
+              <span class="chip-remove" title="Quitar">🗑</span>
+            </div>
+          `
+        )
+        .join("");
+      const invalid = invalidEntries.length
+        ? `${t("invalidNote")} ${invalidEntries.map((v) => `<code>${v}</code>`).join(", ")} ${t("invalidSuffix")}`
+        : "";
+      modsPreview.innerHTML = chips || '<span class="muted" style="font-size:12px;">No has añadido mods aún.</span>';
+      invalidBox.innerHTML = invalid;
+      const countEl = document.getElementById("modsCount");
+      if (countEl) countEl.textContent = t("modsToAnalyze").replace("{count}", currentMods.length);
+
+      modsPreview.querySelectorAll(".mod-chip").forEach((chip) => {
+        chip.addEventListener("dblclick", () => {
+          const slug = chip.getAttribute("data-slug");
+          currentMods = currentMods.filter((m) => m.slug !== slug);
+          syncTextareaFromMods();
+        });
+        chip.addEventListener("click", (e) => {
+          if (e.target.classList.contains("chip-remove")) {
+            const slug = chip.getAttribute("data-slug");
+            currentMods = currentMods.filter((m) => m.slug !== slug);
+            syncTextareaFromMods();
+          }
+        });
+      });
+    }
+
+    function syncTextareaFromMods() {
+      const textarea = document.getElementById("input");
+      textarea.value = currentMods.map((m) => m.url).join("\n");
+      renderModsPreview();
+    }
+
+    function syncModsFromTextarea() {
+      const textarea = document.getElementById("input");
+      currentMods = parseInputMods(textarea.value);
+      renderModsPreview();
+    }
+
+    function appendToInput(url, extra = {}) {
+      syncModsFromTextarea();
+      const slug = extractSlug(url);
+      if (!slug) {
+        invalidEntries.push(url);
+        renderModsPreview();
+        return;
+      }
+      const exists = currentMods.some((m) => m.slug === slug);
+      if (!exists) {
+        currentMods.push({
+          slug,
+          url,
+          name: extra.name || slugToName(slug),
+          raw: url,
+          downloads: extra.downloads || 0,
+          order: currentMods.length,
+        });
+      }
+      syncTextareaFromMods();
+    }
+
+    function sortModsForView() {
+      const mode = chipSort.value;
+      const modsCopy = [...currentMods];
+      if (mode === "az") {
+        modsCopy.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+      } else if (mode === "za") {
+        modsCopy.sort((a, b) => b.name.localeCompare(a.name, undefined, { sensitivity: "base" }));
+      } else if (mode === "compact") {
+        modsCopy.sort((a, b) => a.name.length - b.name.length || a.name.localeCompare(b.name));
+      } else {
+        modsCopy.sort((a, b) => (a.order || 0) - (b.order || 0));
+      }
+      return modsCopy;
+    }
+
+    async function searchMods() {
+      const q = searchInput.value.trim();
+      if (!q) {
+        searchResults.innerHTML = "";
+        searchLoader.classList.remove("active");
+        return;
+      }
+      searchLoader.classList.add("active");
+      try {
+        const resp = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || t("searchError"));
+        const list = data.results || [];
+        if (!list.length) {
+          searchResults.innerHTML = `<div class="muted">${t("noResults")}</div>`;
+          return;
+        }
+        searchResults.innerHTML = list
+          .map((item) => {
+            const exists = currentMods.some((m) => m.slug === item.slug);
+            const symbol = exists ? "−" : "+";
+            const stateClass = exists ? "is-added" : "";
+            return `
+            <div class="result-card">
+              <h4><a href="${item.url}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${item.title || item.slug}</a></h4>
+              <div class="result-meta">
+                <span>Fuente: Modrinth</span>
+                <span>Autor: ${item.author || "N/D"}</span>
+                <span>Descargas: ${item.downloads?.toLocaleString?.() || item.downloads || 0}</span>
+              </div>
+              <p>${item.description || "Sin descripción"}</p>
+              <button class="add-btn add-toggle-btn ${stateClass}" data-url="${item.url}" data-name="${item.title || item.slug}" data-downloads="${item.downloads || 0}" data-slug="${item.slug || ''}">${symbol}</button>
+            </div>
+          `;
+          })
+          .join("");
+        searchResults.querySelectorAll(".add-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const slug = btn.getAttribute("data-slug");
+            const url = btn.getAttribute("data-url");
+            const exists = currentMods.some((m) => m.slug === slug);
+            if (exists) {
+              currentMods = currentMods.filter((m) => m.slug !== slug);
+              syncTextareaFromMods();
+              searchMods();
+            } else {
+              appendToInput(url, {
+                name: btn.getAttribute("data-name"),
+                downloads: Number(btn.getAttribute("data-downloads")) || 0,
+              });
+              searchMods();
+            }
+          });
+        });
+      } catch (err) {
+        searchResults.innerHTML = `<div class="muted">${err.message || t("searchError")}</div>`;
+      } finally {
+        searchLoader.classList.remove("active");
+      }
+    }
+
+    searchBtn.addEventListener("click", searchMods);
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        searchMods();
+      }
+    });
+    searchInput.addEventListener("input", () => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        searchMods();
+      }, 120);
+    });
+    document.getElementById("input").addEventListener("input", syncModsFromTextarea);
+    chipSort.addEventListener("change", renderModsPreview);
+    document.getElementById("langSelect").addEventListener("change", (e) => {
+      currentLang = e.target.value;
+      applyTranslations();
+      renderModsPreview();
+      renderTable();
+    });
+    themeSelect.addEventListener("change", (e) => {
+      currentTheme = e.target.value;
+      applyTheme(currentTheme);
+    });
+    // inicializar
+    applyTranslations();
+    applyTheme(currentTheme);
+    syncModsFromTextarea();
+  </script>
+</body>
+</html>
