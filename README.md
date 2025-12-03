@@ -86,8 +86,7 @@ Paste a list of **Modrinth mod links or slugs**, choose a **loader**, and the ap
 ## 🚀 Live Demo
 
 > 🔗 **Live URL:**  
-> `<https://tu-url-de-render.onrender.com>`  
-> *(Replace this with your actual Render URL.)*
+> `https://mod-compat-analyzer.onrender.com/`  
 
 You can open it from:
 
@@ -124,11 +123,11 @@ Other launchers **may** work if they support Modrinth-style modpacks, but are no
 If you want to run this on your own machine by cloning the repo and excuting inside the folder:
 
 #Only the first time
-pip install -r requirements.txt
+- pip install -r requirements.txt
 
 #To execute the program
-py .\app.py
+-py .\app.py
 
-And open http://127.0.0.1:5000/ in your browser
+- And open http://127.0.0.1:5000/ in your browser
 
-Close the program tab and CMD to close the program
+- Close the program tab and CMD to close the program
