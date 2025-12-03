@@ -16,12 +16,21 @@ app = Flask(__name__)
 MODRINTH_VERSION_ENDPOINT = "https://api.modrinth.com/v2/project/{project_id}/version"
 MODRINTH_SEARCH_ENDPOINT = "https://api.modrinth.com/v2/search"
 MODRINTH_SEARCH_ENDPOINT = "https://api.modrinth.com/v2/search"
+MODRINTH_VERSION_BY_ID = "https://api.modrinth.com/v2/version/{version_id}"
 
 
 @lru_cache(maxsize=512)
 def _get_modrinth_versions_payload(project_id: str):
     """Descarga y cachea el payload de versiones de un proyecto Modrinth."""
     resp = requests.get(MODRINTH_VERSION_ENDPOINT.format(project_id=project_id), timeout=15)
+    if resp.status_code != 200:
+        raise requests.RequestException(f"status {resp.status_code}")
+    return resp.json()
+
+
+@lru_cache(maxsize=1024)
+def _get_version_by_id(version_id: str):
+    resp = requests.get(MODRINTH_VERSION_BY_ID.format(version_id=version_id), timeout=15)
     if resp.status_code != 200:
         raise requests.RequestException(f"status {resp.status_code}")
     return resp.json()
@@ -93,38 +102,25 @@ def fetch_latest_version_file(project_id: str, mc_version: str, loader: str) -> 
     Returns a dict with keys: filename, url, hashes (sha1/sha512), version_number.
     """
     try:
-        versions_payload = _get_modrinth_versions_payload(project_id)
+        version = _pick_best_version(project_id, mc_version, loader)
     except requests.RequestException as exc:
         return {}, f"{project_id}: error de red ({exc})"
     except ValueError:
         return {}, f"{project_id}: respuesta inválida de Modrinth"
 
-    candidates = []
-    for version in versions_payload:
-        gvs = set(version.get("game_versions", []))
-        loaders = set(version.get("loaders", []))
-        if mc_version in gvs and loader in loaders:
-            candidates.append(version)
-
-    if not candidates:
+    if not version:
         return {}, ""
 
-    # Pick the most recent by date_published if present, else by version_number lexical
-    candidates.sort(key=lambda v: v.get("date_published", "") or v.get("version_number", ""), reverse=True)
-    chosen = candidates[0]
-    files = chosen.get("files") or []
-    if not files:
+    file_entry = _pick_main_file(version)
+    if not file_entry:
         return {}, ""
-    file_entry = files[0]
     hashes = file_entry.get("hashes", {})
     return (
         {
             "filename": file_entry.get("filename") or f"{project_id}.jar",
             "url": file_entry.get("url") or "",
-            "hashes": {
-                k: v for k, v in hashes.items() if k in {"sha1", "sha512", "sha256"} and v
-            },
-            "version_number": chosen.get("version_number") or "",
+            "hashes": {k: v for k, v in hashes.items() if k in {"sha1", "sha512", "sha256"} and v},
+            "version_number": version.get("version_number") or "",
             "project_id": project_id,
             "file_size": file_entry.get("size") or 0,
         },
@@ -240,6 +236,81 @@ def fetch_latest_loader_version(loader: str, mc_version: str) -> str:
     except (ValueError, KeyError, IndexError):
         return ""
     return ""
+
+def _pick_best_version(project_id: str, mc_version: str, loader: str):
+    """Select the latest version payload matching mc_version and loader."""
+    versions_payload = _get_modrinth_versions_payload(project_id)
+    candidates = []
+    for version in versions_payload:
+        gvs = set(version.get("game_versions", []))
+        loaders = set(version.get("loaders", []))
+        if mc_version in gvs and loader in loaders:
+            candidates.append(version)
+    if not candidates:
+        return None
+    candidates.sort(key=lambda v: v.get("date_published", "") or v.get("version_number", ""), reverse=True)
+    return candidates[0]
+
+
+def _pick_main_file(version: Dict) -> Dict:
+    files = version.get("files") or []
+    if not files:
+        return {}
+    primaries = [f for f in files if f.get("primary")]
+    if primaries:
+        return primaries[0]
+    required_res = [f for f in files if f.get("file_type") == "required-resource"]
+    if required_res:
+        return required_res[0]
+    jars = [f for f in files if (f.get("filename") or "").endswith(".jar")]
+    if jars:
+        return jars[0]
+    return files[0]
+
+
+def _supports(version: Dict, mc_version: str, loader: str) -> bool:
+    gvs = set(version.get("game_versions", []))
+    loaders = set(version.get("loaders", []))
+    return mc_version in gvs and loader in loaders
+
+
+def resolve_required_dependencies(root_versions: List[Dict], mc_version: str, loader: str, client: str = "required"):
+    visited = set()
+    to_process = list(root_versions)
+    resolved = []
+    unresolved = []
+
+    while to_process:
+        version = to_process.pop()
+        vid = version.get("id")
+        if vid and vid in visited:
+            continue
+        if vid:
+            visited.add(vid)
+        resolved.append(version)
+
+        deps = version.get("dependencies") or []
+        for dep in deps:
+            if dep.get("dependency_type") != "required":
+                continue
+            env = dep.get("env") or {}
+            client_env = env.get("client", "required")
+            if client_env != "required":
+                continue
+            dep_version = None
+            try:
+                if dep.get("version_id"):
+                    dep_version = _get_version_by_id(dep["version_id"])
+                elif dep.get("project_id"):
+                    dep_version = _pick_best_version(dep["project_id"], mc_version, loader)
+            except requests.RequestException:
+                dep_version = None
+            if not dep_version or not _supports(dep_version, mc_version, loader):
+                unresolved.append(dep.get("version_id") or dep.get("project_id") or "unknown")
+                continue
+            to_process.append(dep_version)
+
+    return resolved, unresolved
 
 
 def loader_dependency_key(loader: str) -> str:
@@ -569,29 +640,32 @@ def export_zip():
     if not projects:
         return jsonify({"error": "Proporciona al menos un enlace o ID de Modrinth."}), 400
 
-    files: List[Dict] = []
+    version_payloads: List[Dict] = []
     errors: List[str] = []
     max_workers = min(8, len(projects)) or 1
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(fetch_latest_version_file, proj["id"], mc_version, loader): proj
+            executor.submit(_pick_best_version, proj["id"], mc_version, loader): proj
             for proj in projects
         }
         for future in as_completed(futures):
             proj = futures[future]
             try:
-                file_entry, err = future.result()
+                version = future.result()
             except Exception as exc:  # noqa: BLE001
                 errors.append(f"{proj['label']}: error de ejecución ({exc})")
                 continue
+            if not version:
+                errors.append(f"{proj['label']}: sin versión para {mc_version}/{loader}")
+            else:
+                version_payloads.append(version)
 
-            if err:
-                errors.append(err)
-            if file_entry:
-                files.append(file_entry)
-
-    if not files:
+    if not version_payloads:
         return jsonify({"error": "No se encontraron archivos para exportar.", "errors": errors}), 400
+
+    all_versions, unresolved = resolve_required_dependencies(version_payloads, mc_version, loader)
+    if unresolved:
+        errors.extend([f"Dependencia no resuelta: {u}" for u in unresolved])
 
     loader_version = fetch_latest_loader_version(loader, mc_version)
     if not loader_version:
@@ -610,16 +684,37 @@ def export_zip():
         },
     }
 
+    files: List[Dict] = []
+    for v in all_versions:
+        file_entry = _pick_main_file(v)
+        if not file_entry:
+            continue
+        hashes = file_entry.get("hashes", {})
+        files.append(
+            {
+                "path": f"mods/{file_entry.get('filename') or 'mod.jar'}",
+                "downloads": [file_entry.get("url") or ""],
+                "hashes": {k: val for k, val in hashes.items() if k in {"sha1", "sha512", "sha256"} and val},
+                "env": {"client": "required", "server": "required"},
+                "fileSize": file_entry.get("size") or 0,
+                "version": v.get("version_number", ""),
+                "project_id": v.get("project_id", ""),
+            }
+        )
+
+    if not files:
+        return jsonify({"error": "No se encontraron archivos para exportar.", "errors": errors}), 400
+
     for f in files:
         index["files"].append(
             {
-                "path": f"mods/{f['filename']}",
-                "downloads": [f["url"]],
+                "path": f["path"],
+                "downloads": f["downloads"],
                 "hashes": f["hashes"],
-                "env": {"client": "required", "server": "required"},
-                "fileSize": f.get("file_size", 0),
-                "version": f.get("version_number", ""),
-                "project_id": f.get("project_id", ""),
+                "env": f["env"],
+                "fileSize": f["fileSize"],
+                "version": f["version"],
+                "project_id": f["project_id"],
             }
         )
 
