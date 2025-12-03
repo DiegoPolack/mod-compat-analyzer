@@ -2,15 +2,29 @@ import re
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Set, Tuple
+from io import BytesIO
+import zipfile
+import json
+import xml.etree.ElementTree as ET
+from functools import lru_cache
 
 import requests
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, send_file
 
 app = Flask(__name__)
 
 MODRINTH_VERSION_ENDPOINT = "https://api.modrinth.com/v2/project/{project_id}/version"
 MODRINTH_SEARCH_ENDPOINT = "https://api.modrinth.com/v2/search"
 MODRINTH_SEARCH_ENDPOINT = "https://api.modrinth.com/v2/search"
+
+
+@lru_cache(maxsize=512)
+def _get_modrinth_versions_payload(project_id: str):
+    """Descarga y cachea el payload de versiones de un proyecto Modrinth."""
+    resp = requests.get(MODRINTH_VERSION_ENDPOINT.format(project_id=project_id), timeout=15)
+    if resp.status_code != 200:
+        raise requests.RequestException(f"status {resp.status_code}")
+    return resp.json()
 
 
 def parse_projects(raw_input: str) -> List[Dict]:
@@ -55,15 +69,9 @@ def parse_projects(raw_input: str) -> List[Dict]:
 def fetch_modrinth_versions(project_id: str) -> Tuple[Dict[str, Set[str]], str]:
     """Fetch all game versions for a Modrinth project with loaders per version."""
     try:
-        resp = requests.get(MODRINTH_VERSION_ENDPOINT.format(project_id=project_id), timeout=15)
+        versions_payload = _get_modrinth_versions_payload(project_id)
     except requests.RequestException as exc:
         return {}, f"{project_id}: error de red ({exc})"
-
-    if resp.status_code != 200:
-        return {}, f"{project_id}: error {resp.status_code} al consultar Modrinth"
-
-    try:
-        versions_payload = resp.json()
     except ValueError:
         return {}, f"{project_id}: respuesta inválida de Modrinth"
 
@@ -77,6 +85,172 @@ def fetch_modrinth_versions(project_id: str) -> Tuple[Dict[str, Set[str]], str]:
         return {}, f"{project_id}: sin versiones de Minecraft encontradas"
 
     return game_versions, ""
+
+
+def fetch_latest_version_file(project_id: str, mc_version: str, loader: str) -> Tuple[Dict, str]:
+    """
+    Get the latest version file metadata for a given project / mc version / loader.
+    Returns a dict with keys: filename, url, hashes (sha1/sha512), version_number.
+    """
+    try:
+        versions_payload = _get_modrinth_versions_payload(project_id)
+    except requests.RequestException as exc:
+        return {}, f"{project_id}: error de red ({exc})"
+    except ValueError:
+        return {}, f"{project_id}: respuesta inválida de Modrinth"
+
+    candidates = []
+    for version in versions_payload:
+        gvs = set(version.get("game_versions", []))
+        loaders = set(version.get("loaders", []))
+        if mc_version in gvs and loader in loaders:
+            candidates.append(version)
+
+    if not candidates:
+        return {}, ""
+
+    # Pick the most recent by date_published if present, else by version_number lexical
+    candidates.sort(key=lambda v: v.get("date_published", "") or v.get("version_number", ""), reverse=True)
+    chosen = candidates[0]
+    files = chosen.get("files") or []
+    if not files:
+        return {}, ""
+    file_entry = files[0]
+    hashes = file_entry.get("hashes", {})
+    return (
+        {
+            "filename": file_entry.get("filename") or f"{project_id}.jar",
+            "url": file_entry.get("url") or "",
+            "hashes": {
+                k: v for k, v in hashes.items() if k in {"sha1", "sha512", "sha256"} and v
+            },
+            "version_number": chosen.get("version_number") or "",
+            "project_id": project_id,
+            "file_size": file_entry.get("size") or 0,
+        },
+        "",
+    )
+
+
+@lru_cache(maxsize=64)
+def fetch_latest_loader_version(loader: str, mc_version: str) -> str:
+    """
+    Try to resolve the latest loader version compatible with the given MC version.
+    Falls back to "latest" if unavailable.
+    """
+    loader = loader.lower()
+
+    def clean(ver: str) -> str:
+        if not ver:
+            return ""
+        if isinstance(ver, str) and ver.lower() == "latest":
+            return ""
+        return str(ver)
+    try:
+        if loader == "fabric":
+            resp = requests.get(f"https://meta.fabricmc.net/v2/versions/loader/{mc_version}", timeout=10)
+            if resp.ok:
+                data = resp.json()
+                if data:
+                    return clean(data[0]["loader"]["version"])
+        elif loader == "quilt":
+            resp = requests.get(f"https://meta.quiltmc.org/v3/versions/loader/{mc_version}", timeout=10)
+            if resp.ok:
+                data = resp.json()
+                if data:
+                    return clean(data[0]["loader"]["version"])
+        elif loader == "neoforge":
+            try:
+                resp = requests.get(f"https://meta.neoforged.net/v2/versions/neoforge/{mc_version}", timeout=10)
+                if resp.ok:
+                    data = resp.json()
+                    if data:
+                        version = clean(data[0].get("version"))
+                        if version:
+                            return version
+            except requests.RequestException:
+                pass
+            # Fallback: parse maven metadata and pick highest matching MC prefix
+            try:
+                meta_resp = requests.get("https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml", timeout=10)
+                if meta_resp.ok:
+                    root = ET.fromstring(meta_resp.text)
+                    versions = [v.text for v in root.findall(".//version") if v.text]
+                    target = version_tuple(mc_version, length=3)
+                    target_major = target[1]  # from MC 1.x.y -> x is at index 1
+                    target_minor = target[2]  # y is at index 2
+
+                    def neo_parts(ver: str):
+                        vt = version_tuple(ver, length=3)
+                        return vt
+
+                    filtered = [
+                        v for v in versions
+                        if neo_parts(v)[0] == target_major and neo_parts(v)[1] == target_minor
+                    ]
+                    if filtered:
+                        filtered.sort(key=version_tuple, reverse=True)
+                        return clean(filtered[0])
+                    if versions:
+                        versions.sort(key=version_tuple, reverse=True)
+                        return clean(versions[0])
+            except requests.RequestException:
+                pass
+            except ET.ParseError:
+                pass
+        elif loader == "forge":
+            # Primary source: promotions_slim.json
+            try:
+                resp = requests.get("https://maven.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json", timeout=10)
+                if resp.ok:
+                    data = resp.json()
+                    promos = data.get("promos", {})
+                    for key in (f"{mc_version}-recommended", f"{mc_version}-latest"):
+                        if key in promos:
+                            val = promos[key]
+                            if isinstance(val, str):
+                                if val.startswith(f"{mc_version}-"):
+                                    return clean(val.split("-", 1)[1])
+                                return clean(val)
+            except requests.RequestException:
+                pass
+
+            # Fallback: parse maven metadata for the MC branch
+            try:
+                meta_resp = requests.get("https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml", timeout=10)
+                if meta_resp.ok:
+                    root = ET.fromstring(meta_resp.text)
+                    versions = [v.text for v in root.findall(".//version") if v.text]
+                    prefixed = [v for v in versions if v.startswith(f"{mc_version}-")]
+                    if prefixed:
+                        # sort by the forge part after the first dash
+                        def forge_part(ver: str) -> Tuple[int, ...]:
+                            part = ver.split("-", 1)[1] if "-" in ver else ver
+                            return version_tuple(part)
+
+                        prefixed.sort(key=forge_part, reverse=True)
+                        best = prefixed[0]
+                        return clean(best.split("-", 1)[1] if "-" in best else best)
+            except requests.RequestException:
+                pass
+            except ET.ParseError:
+                pass
+    except requests.RequestException:
+        return ""
+    except (ValueError, KeyError, IndexError):
+        return ""
+    return ""
+
+
+def loader_dependency_key(loader: str) -> str:
+    loader = loader.lower()
+    if loader in {"forge", "neoforge"}:
+        return loader
+    if loader == "fabric":
+        return "fabric-loader"
+    if loader == "quilt":
+        return "quilt-loader"
+    return loader
 
 
 def search_modrinth(query: str, limit: int = 20) -> Tuple[List[Dict], str]:
@@ -377,6 +551,88 @@ def search():
     if err:
         return jsonify({"error": err}), 502
     return jsonify({"results": results, "errors": []})
+
+
+@app.route("/api/export", methods=["POST"])
+def export_zip():
+    from flask import request
+
+    body = request.get_json(force=True, silent=True) or {}
+    raw_urls = body.get("urls", "")
+    mc_version = body.get("mcVersion")
+    loader = (body.get("loader", "fabric") or "fabric").lower()
+
+    if not mc_version:
+        return jsonify({"error": "Falta versión de Minecraft"}), 400
+
+    projects = parse_projects(raw_urls)
+    if not projects:
+        return jsonify({"error": "Proporciona al menos un enlace o ID de Modrinth."}), 400
+
+    files: List[Dict] = []
+    errors: List[str] = []
+    max_workers = min(8, len(projects)) or 1
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(fetch_latest_version_file, proj["id"], mc_version, loader): proj
+            for proj in projects
+        }
+        for future in as_completed(futures):
+            proj = futures[future]
+            try:
+                file_entry, err = future.result()
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"{proj['label']}: error de ejecución ({exc})")
+                continue
+
+            if err:
+                errors.append(err)
+            if file_entry:
+                files.append(file_entry)
+
+    if not files:
+        return jsonify({"error": "No se encontraron archivos para exportar.", "errors": errors}), 400
+
+    loader_version = fetch_latest_loader_version(loader, mc_version)
+    if not loader_version:
+        return jsonify({"error": "No se pudo resolver la versión específica del modloader."}), 400
+    dep_key = loader_dependency_key(loader)
+
+    index = {
+        "formatVersion": 1,
+        "game": "minecraft",
+        "versionId": f"generated-{mc_version}-{loader}",
+        "name": f"Modpack {mc_version} ({loader})",
+        "files": [],
+        "dependencies": {
+            "minecraft": mc_version,
+            dep_key: loader_version,
+        },
+    }
+
+    for f in files:
+        index["files"].append(
+            {
+                "path": f"mods/{f['filename']}",
+                "downloads": [f["url"]],
+                "hashes": f["hashes"],
+                "env": {"client": "required", "server": "required"},
+                "fileSize": f.get("file_size", 0),
+                "version": f.get("version_number", ""),
+                "project_id": f.get("project_id", ""),
+            }
+        )
+
+    mem = BytesIO()
+    with zipfile.ZipFile(mem, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("modrinth.index.json", json.dumps(index, ensure_ascii=False, indent=2))
+    mem.seek(0)
+    return send_file(
+        mem,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"modpack-{mc_version}-{loader}.zip",
+    )
 
 
 if __name__ == "__main__":
