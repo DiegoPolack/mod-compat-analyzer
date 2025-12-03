@@ -266,6 +266,35 @@
       border-color: var(--accent);
       transform: translateY(-1px);
     }
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      background: rgba(17,24,39,0.9);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 14px 35px rgba(0,0,0,0.35);
+      opacity: 0;
+      transform: translateY(12px);
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 999;
+      min-width: 200px;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .toast.success {
+      border-color: rgba(52,211,153,0.4);
+      background: rgba(16,185,129,0.12);
+    }
     .lang-switch {
       display: inline-flex;
       align-items: center;
@@ -667,6 +696,10 @@
     </div>
     <div class="footer" id="footerText">Datos obtenidos vía API de Modrinth.</div>
   </div>
+  <div class="toast" id="toast">
+    <div class="spinner" style="width:14px;height:14px;border-width:2px;"></div>
+    <span id="toastText"></span>
+  </div>
 
   <script>
     const btn = document.getElementById("analyzeBtn");
@@ -854,7 +887,10 @@
         noResults: "Sin resultados.",
         searchError: "Error en la búsqueda",
           recommended: "Versión recomendada: {version} ({count} de {total} mods)",
-          exportZip: "Exportar ZIP para PrismLauncher",
+         exportZip: "Exportar ZIP para PrismLauncher",
+         prepareDownload: "Preparando descarga...",
+         readyDownload: "Descarga lista",
+         copySuccess: "Mod list copiada",
           copyVersionLabel: "Copiar",
           noRecommended: "Sin resultados disponibles",
         viewMods: "Ver mods",
@@ -931,6 +967,9 @@
         searchError: "Search error",
           recommended: "Recommended version: {version} ({count} of {total} mods)",
           exportZip: "Export ZIP for PrismLauncher",
+          prepareDownload: "Preparing download...",
+          readyDownload: "Download ready",
+          copySuccess: "Mod list copied",
           copyVersionLabel: "Copy",
           noRecommended: "No results available",
         viewMods: "View mods",
@@ -1007,6 +1046,9 @@
         searchError: "Erro na busca",
           recommended: "Versão recomendada: {version} ({count} de {total} mods)",
           exportZip: "Exportar ZIP para PrismLauncher",
+          prepareDownload: "Preparando download...",
+          readyDownload: "Download pronto",
+          copySuccess: "Lista de mods copiada",
           copyVersionLabel: "Copiar",
           noRecommended: "Sem resultados disponíveis",
         viewMods: "Ver mods",
@@ -1083,6 +1125,9 @@
         searchError: "Erreur de recherche",
           recommended: "Version recommandée : {version} ({count} sur {total} mods)",
           exportZip: "Exporter en ZIP pour PrismLauncher",
+          prepareDownload: "Préparation du téléchargement...",
+          readyDownload: "Téléchargement prêt",
+          copySuccess: "Liste des mods copiée",
           copyVersionLabel: "Copier",
           noRecommended: "Aucun résultat disponible",
         viewMods: "Voir les mods",
@@ -1159,6 +1204,9 @@
         searchError: "Fehler bei der Suche",
           recommended: "Empfohlene Version: {version} ({count} von {total} Mods)",
           exportZip: "ZIP für PrismLauncher exportieren",
+          prepareDownload: "Download wird vorbereitet...",
+          readyDownload: "Download bereit",
+          copySuccess: "Mod-Liste kopiert",
           copyVersionLabel: "Kopieren",
           noRecommended: "Keine Ergebnisse verfügbar",
         viewMods: "Mods anzeigen",
@@ -1234,6 +1282,9 @@
         noResults: "没有结果。",
         searchError: "搜索错误",
         recommended: "推荐版本：{version}（{count}/{total} 模组）",
+        exportZip: "导出 ZIP 到 PrismLauncher",
+        prepareDownload: "准备下载...",
+        readyDownload: "下载就绪",
         noRecommended: "暂无结果",
         viewMods: "查看模组",
         hideMods: "隐藏",
@@ -1308,6 +1359,9 @@
         noResults: "結果なし。",
         searchError: "検索エラー",
         recommended: "推奨バージョン: {version}（{total}中{count} Mod）",
+        exportZip: "PrismLauncher 用に ZIP をエクスポート",
+        prepareDownload: "ダウンロード準備中...",
+        readyDownload: "ダウンロード準備完了",
         noRecommended: "結果がありません",
         viewMods: "Modを見る",
         hideMods: "隠す",
@@ -1382,6 +1436,9 @@
         noResults: "Нет результатов.",
         searchError: "Ошибка поиска",
         recommended: "Рекомендуемая версия: {version} ({count} из {total} модов)",
+        exportZip: "Экспорт ZIP для PrismLauncher",
+        prepareDownload: "Подготовка загрузки...",
+        readyDownload: "Загрузка готова",
         noRecommended: "Нет доступных результатов",
         viewMods: "Показать моды",
         hideMods: "Скрыть",
@@ -1650,7 +1707,7 @@
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                   <span>${item.version} ${snapshotBadge} ${prereleaseBadge}</span>
                   <button class="copy-btn" data-version="${item.version}" title="${t("copyVersionLabel") || "Copiar"}">📋</button>
-                  <button class="copy-btn export-btn" data-version="${item.version}" title="${t("exportZip") || "Exportar ZIP"}">⬇</button>
+                  <button class="export-btn" data-version="${item.version}" title="${t("exportZip") || "Exportar ZIP"}">⬇</button>
                 </div>
               </td>
               <td><span class="chip">${t("compatCount")
@@ -1676,7 +1733,7 @@
           renderTable();
         });
       });
-      document.querySelectorAll(".copy-btn").forEach((btn) => {
+      document.querySelectorAll(".copy-btn:not(.export-btn)").forEach((btn) => {
         btn.addEventListener("click", (e) => {
           const v = e.currentTarget.getAttribute("data-version");
           copyVersion(v);
@@ -1768,19 +1825,37 @@
       if (!text) return;
       navigator.clipboard.writeText(text).then(
         () => {
-          errorsEl.textContent = t("copySuccess") || "Copiado";
-          setTimeout(() => {
-            if (errorsEl.textContent === (t("copySuccess") || "Copiado")) errorsEl.textContent = "";
-          }, 2000);
-        },
-        () => {
-          errorsEl.textContent = t("copyError") || "No se pudo copiar";
-        }
-      );
+        showToast(t("copySuccess") || "Mod list copiada", "success", 5000);
+      },
+      () => {
+        errorsEl.textContent = t("copyError") || "No se pudo copiar";
+      }
+    );
+    }
+
+    let toastTimer = null;
+    function showToast(text, kind = "info", autoHideMs = null) {
+      const toast = document.getElementById("toast");
+      const toastText = document.getElementById("toastText");
+      if (!toast || !toastText) return;
+      toastText.textContent = text;
+      toast.classList.remove("success");
+      if (kind === "success") toast.classList.add("success");
+      else toast.classList.remove("success");
+      const spinner = toast.querySelector(".spinner");
+      if (spinner) spinner.style.display = kind === "success" ? "none" : "inline-block";
+      toast.classList.add("show");
+      if (toastTimer) clearTimeout(toastTimer);
+      if (autoHideMs) {
+        toastTimer = setTimeout(() => {
+          toast.classList.remove("show", "success");
+        }, autoHideMs);
+      }
     }
 
     async function exportZip(version) {
       const urls = document.getElementById("input").value.trim();
+      showToast(t("prepareDownload") || "Preparando descarga...", "info");
       try {
         const resp = await fetch("/api/export", {
           method: "POST",
@@ -1804,8 +1879,10 @@
         a.click();
         a.remove();
         window.URL.revokeObjectURL(url);
+        showToast(t("readyDownload") || "Descarga lista", "success", 5000);
       } catch (err) {
         errorsEl.textContent = err.message || "Error al exportar";
+        showToast(err.message || "Error al exportar", "info", 2500);
         setTimeout(() => {
           if (errorsEl.textContent === (err.message || "Error al exportar")) errorsEl.textContent = "";
         }, 2500);
