@@ -853,8 +853,10 @@
         invalidSuffix: "(se ignoran)",
         noResults: "Sin resultados.",
         searchError: "Error en la búsqueda",
-        recommended: "Versión recomendada: {version} ({count} de {total} mods)",
-        noRecommended: "Sin resultados disponibles",
+          recommended: "Versión recomendada: {version} ({count} de {total} mods)",
+          exportZip: "Exportar ZIP para PrismLauncher",
+          copyVersionLabel: "Copiar",
+          noRecommended: "Sin resultados disponibles",
         viewMods: "Ver mods",
         hideMods: "Ocultar",
         listCompat: "Compatibles",
@@ -927,8 +929,10 @@
         invalidSuffix: "(ignored)",
         noResults: "No results.",
         searchError: "Search error",
-        recommended: "Recommended version: {version} ({count} of {total} mods)",
-        noRecommended: "No results available",
+          recommended: "Recommended version: {version} ({count} of {total} mods)",
+          exportZip: "Export ZIP for PrismLauncher",
+          copyVersionLabel: "Copy",
+          noRecommended: "No results available",
         viewMods: "View mods",
         hideMods: "Hide",
         listCompat: "Compatible",
@@ -1001,8 +1005,10 @@
         invalidSuffix: "(ignorados)",
         noResults: "Sem resultados.",
         searchError: "Erro na busca",
-        recommended: "Versão recomendada: {version} ({count} de {total} mods)",
-        noRecommended: "Sem resultados disponíveis",
+          recommended: "Versão recomendada: {version} ({count} de {total} mods)",
+          exportZip: "Exportar ZIP para PrismLauncher",
+          copyVersionLabel: "Copiar",
+          noRecommended: "Sem resultados disponíveis",
         viewMods: "Ver mods",
         hideMods: "Ocultar",
         listCompat: "Compatíveis",
@@ -1075,8 +1081,10 @@
         invalidSuffix: "(ignorés)",
         noResults: "Aucun résultat.",
         searchError: "Erreur de recherche",
-        recommended: "Version recommandée : {version} ({count} sur {total} mods)",
-        noRecommended: "Aucun résultat disponible",
+          recommended: "Version recommandée : {version} ({count} sur {total} mods)",
+          exportZip: "Exporter en ZIP pour PrismLauncher",
+          copyVersionLabel: "Copier",
+          noRecommended: "Aucun résultat disponible",
         viewMods: "Voir les mods",
         hideMods: "Masquer",
         listCompat: "Compatibles",
@@ -1149,8 +1157,10 @@
         invalidSuffix: "(ignoriert)",
         noResults: "Keine Ergebnisse.",
         searchError: "Fehler bei der Suche",
-        recommended: "Empfohlene Version: {version} ({count} von {total} Mods)",
-        noRecommended: "Keine Ergebnisse verfügbar",
+          recommended: "Empfohlene Version: {version} ({count} von {total} Mods)",
+          exportZip: "ZIP für PrismLauncher exportieren",
+          copyVersionLabel: "Kopieren",
+          noRecommended: "Keine Ergebnisse verfügbar",
         viewMods: "Mods anzeigen",
         hideMods: "Verbergen",
         listCompat: "Kompatibel",
@@ -1639,7 +1649,8 @@
               <td>
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                   <span>${item.version} ${snapshotBadge} ${prereleaseBadge}</span>
-                  <button class="copy-btn" data-version="${item.version}">📋</button>
+                  <button class="copy-btn" data-version="${item.version}" title="${t("copyVersionLabel") || "Copiar"}">📋</button>
+                  <button class="copy-btn export-btn" data-version="${item.version}" title="${t("exportZip") || "Exportar ZIP"}">⬇</button>
                 </div>
               </td>
               <td><span class="chip">${t("compatCount")
@@ -1669,6 +1680,12 @@
         btn.addEventListener("click", (e) => {
           const v = e.currentTarget.getAttribute("data-version");
           copyVersion(v);
+        });
+      });
+      document.querySelectorAll(".export-btn").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          const v = e.currentTarget.getAttribute("data-version");
+          exportZip(v);
         });
       });
     }
@@ -1760,6 +1777,39 @@
           errorsEl.textContent = t("copyError") || "No se pudo copiar";
         }
       );
+    }
+
+    async function exportZip(version) {
+      const urls = document.getElementById("input").value.trim();
+      try {
+        const resp = await fetch("/api/export", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            urls,
+            mcVersion: version,
+            loader: loaderSelect.value,
+          }),
+        });
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          throw new Error(data.error || "Error al exportar");
+        }
+        const blob = await resp.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `modpack-${version}-${loaderSelect.value}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        errorsEl.textContent = err.message || "Error al exportar";
+        setTimeout(() => {
+          if (errorsEl.textContent === (err.message || "Error al exportar")) errorsEl.textContent = "";
+        }, 2500);
+      }
     }
 
     btn.addEventListener("click", analyze);
